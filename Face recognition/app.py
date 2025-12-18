@@ -7,6 +7,10 @@ import time
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_cors import CORS
 from deepface import DeepFace
+from dotenv import load_dotenv
+   
+   # Load .env file from current directory
+load_dotenv()
 
 app = Flask(__name__)
 # Enable CORS for Flutter app

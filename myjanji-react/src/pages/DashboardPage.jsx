@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus,
   FileText,
   Clock,
   CheckCircle,
@@ -15,6 +14,7 @@ import {
   Eye,
   XCircle,
   RefreshCw,
+  CreditCard,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContracts } from '../context/ContractContext'
@@ -186,26 +186,25 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background pb-24">
       <Header title="MyJanji" showLogout />
 
-      {/* User Profile Card */}
+      {/* Generic MyKad Card */}
       <div className="px-4 -mt-4 relative z-10">
-        <Card className="flex items-center gap-4" padding="md">
-          <img
-            src={currentUser.avatar}
-            alt={currentUser.name}
-            className="w-14 h-14 rounded-xl object-cover"
-          />
-          <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-header truncate">{currentUser.name}</h2>
-            <p className="text-sm text-body/60">IC: {currentUser.ic}</p>
+        <Card className="relative overflow-hidden" padding="none">
+          {/* MyKad-style card design */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4">
+            <div className="flex items-center gap-4">
+              {/* Generic card icon */}
+              <div className="w-16 h-20 bg-white rounded-lg border-2 border-blue-200 flex items-center justify-center shadow-sm">
+                <CreditCard className="h-8 w-8 text-blue-400" />
+              </div>
+              
+              {/* User info */}
+              <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-header truncate text-lg">{currentUser.name}</h2>
+                <p className="text-sm text-body/60 mt-1">IC: {currentUser.ic}</p>
+                <p className="text-xs text-body/40 mt-1">Malaysian Identity Card</p>
+              </div>
+            </div>
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Plus}
-            onClick={() => navigate('/create-contract')}
-          >
-            New
-          </Button>
         </Card>
       </div>
 

@@ -1,0 +1,45 @@
+# Environment variables
+.env
+env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Face recognition uploads
+Face recognition/uploads/*.jpg
+Face recognition/uploads/*.png
+Face recognition/uploads/*.jpeg
+Face recognition/uploads/*.jfif
+
+# Node modules
+node_modules/
+myjanji-react/node_modules/
+
+# Build outputs
+dist/
+build/
+myjanji-react/dist/
+myjanji-react/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+

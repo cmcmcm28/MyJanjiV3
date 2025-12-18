@@ -1,0 +1,4 @@
+# R20C-USB is a keyboard emulation reader - no backend service needed!
+# The React app captures keyboard input directly.
+# This file is kept for reference but not required.
+

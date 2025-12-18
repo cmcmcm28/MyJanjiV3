@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Nfc, 
@@ -16,73 +16,162 @@ export default function NFCScanner({
   onError,
   onSkip,
   title = 'Scan Your MyKad',
-  description = 'Place your MyKad on the back of your device to verify your identity',
+  description = 'Click Start, then place your MyKad on the R20C-USB reader',
   allowSkip = true,
 }) {
   const [status, setStatus] = useState('idle') // idle, scanning, success, error
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState(null)
   const [scannedData, setScannedData] = useState(null)
+  const inputRef = useRef(null)
+  const scanTimeoutRef = useRef(null)
+  const capturedTextRef = useRef('')
+  const isScanningRef = useRef(false)
 
-  // Mock NFC scanning function
+  // Parse IC number and extract data
+  const parseNFCData = useCallback((rawText) => {
+    // Remove any whitespace and special characters
+    const cleaned = rawText.replace(/\s+/g, '').trim()
+    
+    // Try to find IC number pattern (12 digits with optional dashes: YYMMDD-PB-G###)
+    const icPattern = /(\d{6}[-]?\d{2}[-]?\d{4})/
+    const icMatch = cleaned.match(icPattern)
+    
+    if (!icMatch) {
+      return null
+    }
+
+    const icNumber = icMatch[1].replace(/-/g, '')
+    
+    if (icNumber.length !== 12) {
+      return null
+    }
+
+    // Parse date of birth from IC number (format: YYMMDD)
+    let dateOfBirth = null
+    try {
+      const year = parseInt(icNumber.substring(0, 2))
+      const month = parseInt(icNumber.substring(2, 4))
+      const day = parseInt(icNumber.substring(4, 6))
+      // Determine century (00-30 = 2000-2030, 31-99 = 1931-1999)
+      const fullYear = year <= 30 ? 2000 + year : 1900 + year
+      dateOfBirth = `${fullYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+    } catch (e) {
+      console.error('Error parsing date:', e)
+    }
+
+    // Extract gender from last digit (odd = male, even = female)
+    const lastDigit = parseInt(icNumber[11])
+    const gender = lastDigit % 2 === 1 ? 'M' : 'F'
+
+    // Format IC number with dashes
+    const formattedIC = `${icNumber.substring(0, 6)}-${icNumber.substring(6, 8)}-${icNumber.substring(8, 12)}`
+
+    return {
+      cardType: 'MyKad',
+      icNumber: formattedIC,
+      name: 'SCANNED FROM CARD', // Name would need to be read from card if available
+      address: 'SCANNED FROM CARD', // Address would need to be read from card if available
+      dateOfBirth,
+      gender,
+      citizenship: 'WARGANEGARA',
+      issueDate: null,
+      expiryDate: null,
+      chipId: `MYK${icNumber.substring(8, 12)}`,
+      timestamp: new Date().toISOString(),
+    }
+  }, [])
+
+  // Handle input from keyboard emulation reader
+  const handleInput = useCallback((e) => {
+    if (!isScanningRef.current) return
+
+    const value = e.target.value
+    capturedTextRef.current = value
+
+    // Update progress based on input length (assuming IC number is 12 digits)
+    const progressValue = Math.min((value.length / 12) * 100, 95)
+    setProgress(progressValue)
+
+    // If we have enough characters, try to parse
+    if (value.length >= 12) {
+      // Wait a bit more in case reader is still typing
+      clearTimeout(scanTimeoutRef.current)
+      scanTimeoutRef.current = setTimeout(() => {
+        const parsedData = parseNFCData(value)
+        
+        if (parsedData) {
+          isScanningRef.current = false
+          setScannedData(parsedData)
+          setStatus('success')
+          setProgress(100)
+          
+          // Clear the input
+          if (inputRef.current) {
+            inputRef.current.value = ''
+          }
+          
+          // Call success callback
+          setTimeout(() => {
+            onSuccess?.(parsedData)
+          }, 1000)
+        } else {
+          isScanningRef.current = false
+          setStatus('error')
+          setErrorMessage('Failed to parse card data. Please try scanning again.')
+          onError?.({ message: 'Invalid card data format' })
+        }
+      }, 500) // Wait 500ms after last character
+    }
+  }, [status, parseNFCData, onSuccess, onError])
+
+  // Start scanning - focus hidden input to capture keyboard input
   const startScanning = useCallback(() => {
     setStatus('scanning')
     setProgress(0)
     setErrorMessage(null)
+    setScannedData(null)
+    capturedTextRef.current = ''
+    isScanningRef.current = true
 
-    // Simulate NFC scanning progress
-    const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval)
-          return 100
-        }
-        return prev + 10
-      })
-    }, 200)
-
-    // Simulate NFC read after 2.5 seconds
+    // Focus the hidden input field to capture keyboard input
     setTimeout(() => {
-      clearInterval(progressInterval)
-      setProgress(100)
-      
-      // Mock successful scan with dummy data
-      const mockNfcData = {
-        cardType: 'MyKad',
-        icNumber: '901212-10-5599',
-        name: 'SPONGEBOB BIN SQUAREPANTS',
-        address: '124 CONCH STREET, BIKINI BOTTOM',
-        dateOfBirth: '1990-12-12',
-        gender: 'M',
-        citizenship: 'WARGANEGARA',
-        issueDate: '2020-01-15',
-        expiryDate: '2030-01-14',
-        chipId: 'MYK' + Math.random().toString(36).substring(2, 10).toUpperCase(),
-        timestamp: new Date().toISOString(),
+      if (inputRef.current) {
+        inputRef.current.focus()
+        inputRef.current.value = ''
       }
+    }, 100)
 
-      setScannedData(mockNfcData)
-      setStatus('success')
-      
-      // Call success callback after brief delay
-      setTimeout(() => {
-        onSuccess?.(mockNfcData)
-      }, 1000)
-    }, 2500)
-  }, [onSuccess])
-
-  // Simulate NFC error (for testing)
-  const simulateError = useCallback(() => {
-    setStatus('error')
-    setErrorMessage('Failed to read NFC chip. Please try again.')
-    onError?.({ message: 'NFC read failed' })
+    // Set timeout in case no input is received
+    clearTimeout(scanTimeoutRef.current)
+    scanTimeoutRef.current = setTimeout(() => {
+      if (isScanningRef.current && capturedTextRef.current.length < 12) {
+        isScanningRef.current = false
+        setStatus('error')
+        setErrorMessage('No card detected. Please place your MyKad on the reader and try again.')
+        onError?.({ message: 'Scan timeout' })
+      }
+    }, 10000) // 10 second timeout
   }, [onError])
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(scanTimeoutRef.current)
+    }
+  }, [])
+
   const handleRetry = () => {
+    isScanningRef.current = false
     setStatus('idle')
     setProgress(0)
     setErrorMessage(null)
     setScannedData(null)
+    capturedTextRef.current = ''
+    clearTimeout(scanTimeoutRef.current)
+    if (inputRef.current) {
+      inputRef.current.value = ''
+    }
   }
 
   return (
@@ -91,6 +180,28 @@ export default function NFCScanner({
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col items-center"
     >
+      {/* Hidden input field to capture keyboard emulation */}
+      <input
+        ref={inputRef}
+        type="text"
+        autoComplete="off"
+        style={{
+          position: 'absolute',
+          left: '-9999px',
+          opacity: 0,
+          pointerEvents: status === 'scanning' ? 'auto' : 'none',
+        }}
+        onInput={handleInput}
+        onKeyDown={(e) => {
+          // Prevent default behavior for Enter key
+          if (e.key === 'Enter') {
+            e.preventDefault()
+          }
+        }}
+        placeholder=""
+        tabIndex={status === 'scanning' ? 0 : -1}
+      />
+
       {/* Title */}
       <div className="text-center mb-6">
         <h3 className="text-xl font-bold text-header mb-2">{title}</h3>
@@ -194,11 +305,15 @@ export default function NFCScanner({
             exit={{ opacity: 0 }}
             className="text-center"
           >
-            <Button onClick={startScanning} icon={Nfc} size="lg">
+            <Button 
+              onClick={startScanning} 
+              icon={Nfc} 
+              size="lg"
+            >
               Start NFC Scan
             </Button>
             <p className="text-xs text-body/40 mt-4">
-              Make sure NFC is enabled on your device
+              Place your MyKad on the R20C-USB reader after clicking Start
             </p>
           </motion.div>
         )}
@@ -216,7 +331,7 @@ export default function NFCScanner({
               <span className="font-medium">Scanning MyKad...</span>
             </div>
             <p className="text-xs text-body/40 mt-2">
-              Keep your card steady on the device
+              Place your MyKad on the R20C-USB reader now...
             </p>
           </motion.div>
         )}
