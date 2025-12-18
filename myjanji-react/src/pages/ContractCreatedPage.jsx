@@ -1,0 +1,320 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import {
+  CheckCircle,
+  FileText,
+  Download,
+  Home,
+  Share2,
+  Calendar,
+  User,
+  ArrowRight,
+} from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { useContracts } from '../context/ContractContext'
+import { users } from '../utils/dummyData'
+import Header from '../components/layout/Header'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import PDFPreviewModal from '../components/features/PDFPreviewModal'
+import pdfService from '../services/pdfService'
+// Date formatting helper
+const formatDate = (date, formatStr = 'dd/MM/yyyy HH:mm') => {
+  if (!date) return '[Date]'
+  const d = new Date(date)
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  
+  if (formatStr === 'dd MMM yyyy, HH:mm') {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return `${day} ${monthNames[d.getMonth()]} ${year}, ${hours}:${minutes}`
+  }
+  return `${day}/${month}/${year} ${hours}:${minutes}`
+}
+
+export default function ContractCreatedPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { currentUser } = useAuth()
+  const { getContractById } = useContracts()
+  
+  const [contract, setContract] = useState(null)
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Get contract from location state (preferred) or by ID
+    const contractFromState = location.state?.contract
+    
+    if (contractFromState) {
+      setContract(contractFromState)
+      generateSignedPdf(contractFromState)
+    } else {
+      // Fallback: try to get by ID from state or URL params
+      const contractId = location.state?.contractId || new URLSearchParams(location.search).get('id')
+      
+      if (contractId) {
+        const foundContract = getContractById(contractId)
+        if (foundContract) {
+          setContract(foundContract)
+          generateSignedPdf(foundContract)
+        } else {
+          // If contract not found, redirect to dashboard
+          setTimeout(() => navigate('/dashboard'), 2000)
+        }
+      } else {
+        // No contract data, redirect to dashboard
+        setTimeout(() => navigate('/dashboard'), 2000)
+      }
+    }
+  }, [location, getContractById, navigate])
+
+  const generateSignedPdf = async (contractData) => {
+    setLoading(true)
+    try {
+      const acceptee = contractData.accepteeId ? users[contractData.accepteeId] : null
+      
+      const result = await pdfService.generateContractPDF(
+        contractData,
+        currentUser,
+        acceptee,
+        {
+          templateType: contractData.templateType,
+          formData: contractData.formData,
+          includeSignatures: true,
+        }
+      )
+
+      if (result.success) {
+        setPdfUrl(result.url)
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!contract) return
+    
+    const acceptee = contract.accepteeId ? users[contract.accepteeId] : null
+    await pdfService.downloadContractPDF(contract, currentUser, acceptee, {
+      templateType: contract.templateType,
+      formData: contract.formData,
+      includeSignatures: true,
+    })
+  }
+
+  const handleShare = () => {
+    // TODO: Implement sharing functionality
+    if (navigator.share && contract) {
+      navigator.share({
+        title: `Contract: ${contract.name}`,
+        text: `I've created a contract: ${contract.name}. Contract ID: ${contract.id}`,
+        url: window.location.href,
+      }).catch(() => {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(window.location.href)
+        alert('Contract link copied to clipboard!')
+      })
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(window.location.href)
+      alert('Contract link copied to clipboard!')
+    }
+  }
+
+  if (!contract) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-body/60">Loading contract...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const acceptee = contract.accepteeId ? users[contract.accepteeId] : null
+  const signatureDate = contract.signatureDate ? new Date(contract.signatureDate) : new Date()
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header title="Contract Created" showBack={false} />
+
+      <div className="px-4 py-6 max-w-2xl mx-auto">
+        {/* Success Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', delay: 0.2 }}
+            className="w-20 h-20 rounded-full gradient-primary flex items-center justify-center mx-auto mb-4"
+          >
+            <CheckCircle className="h-10 w-10 text-white" />
+          </motion.div>
+          <h1 className="text-2xl font-bold text-header mb-2">Contract Created Successfully!</h1>
+          <p className="text-body/60">Your contract has been signed and is ready to be shared</p>
+        </motion.div>
+
+        {/* Contract Summary Card */}
+        <Card className="mb-6" padding="lg">
+          <div className="space-y-4">
+            {/* Contract Info */}
+            <div className="flex items-start justify-between pb-4 border-b border-gray-100">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-header mb-1">{contract.name}</h2>
+                <p className="text-sm text-body/60">{contract.topic || 'Contract Agreement'}</p>
+              </div>
+              <span className="text-xs bg-status-pending/10 text-status-pending px-3 py-1 rounded-full font-medium">
+                {contract.status}
+              </span>
+            </div>
+
+            {/* Contract ID */}
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+              <FileText className="h-4 w-4 text-body/40" />
+              <span className="text-xs text-body/50">Contract ID:</span>
+              <span className="text-sm font-mono font-semibold text-header">{contract.id}</span>
+            </div>
+
+            {/* Signature Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4 text-blue-600" />
+                  <span className="text-xs font-medium text-blue-800">Your Signature</span>
+                </div>
+                {contract.creatorSignature ? (
+                  <div className="space-y-1">
+                    <img
+                      src={contract.creatorSignature}
+                      alt="Your signature"
+                      className="h-8 object-contain"
+                    />
+                    <p className="text-xs text-blue-700">
+                      {formatDate(signatureDate, 'dd/MM/yyyy HH:mm')}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-blue-600">Pending</p>
+                )}
+              </div>
+
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4 text-body/40" />
+                  <span className="text-xs font-medium text-body/60">Other Party</span>
+                </div>
+                {acceptee ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-header">{acceptee.name}</p>
+                    <p className="text-xs text-body/50">
+                      {contract.accepteeSignature ? 'Signed' : 'Awaiting signature'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-body/50">Not selected</p>
+                )}
+              </div>
+            </div>
+
+            {/* Timestamp */}
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+              <Calendar className="h-4 w-4 text-body/40" />
+              <span className="text-xs text-body/50">Created:</span>
+              <span className="text-sm font-medium text-header">
+                {formatDate(signatureDate, 'dd MMM yyyy, HH:mm')}
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Action Buttons */}
+        <div className="space-y-3 mb-6">
+          <Button
+            onClick={() => setShowPdfPreview(true)}
+            icon={FileText}
+            className="w-full"
+            size="lg"
+          >
+            Preview Signed Contract
+          </Button>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              onClick={handleDownload}
+              variant="outline"
+              icon={Download}
+              className="w-full"
+              disabled={loading}
+            >
+              Download PDF
+            </Button>
+            <Button
+              onClick={handleShare}
+              variant="outline"
+              icon={Share2}
+              className="w-full"
+            >
+              Share
+            </Button>
+          </div>
+        </div>
+
+        {/* Next Steps Info */}
+        <Card className="bg-blue-50 border-blue-200" padding="md">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-blue-100">
+              <ArrowRight className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-900 mb-1">What's Next?</h3>
+              <p className="text-sm text-blue-700">
+                The contract has been sent to <strong>{acceptee?.name || 'the other party'}</strong>. 
+                They will need to complete identity verification and sign to activate the contract.
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Go to Dashboard Button */}
+        <div className="mt-8">
+          <Button
+            onClick={() => navigate('/dashboard')}
+            icon={Home}
+            iconPosition="right"
+            className="w-full"
+            size="lg"
+          >
+            Go to Dashboard
+          </Button>
+        </div>
+      </div>
+
+      {/* PDF Preview Modal */}
+      <PDFPreviewModal
+        isOpen={showPdfPreview}
+        onClose={() => setShowPdfPreview(false)}
+        contract={contract}
+        creator={currentUser}
+        acceptee={acceptee}
+        templateType={contract.templateType}
+        formData={contract.formData}
+        title={`Signed Contract: ${contract.name}`}
+        allowDownload={true}
+      />
+    </div>
+  )
+}
+

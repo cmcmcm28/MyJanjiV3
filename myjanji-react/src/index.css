@@ -1,0 +1,75 @@
+/* Import Poppins font - must be first */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+/* Custom theme variables matching Flutter app_theme.dart */
+@theme {
+  --color-primary: #0052D4;
+  --color-primary-start: #0052D4;
+  --color-primary-mid: #4364F7;
+  --color-primary-end: #6FB1FC;
+  --color-header: #1A237E;
+  --color-body: #424242;
+  --color-background: #F5F7FA;
+  --color-secondary: #9C27B0;
+  --color-secondary-light: #BA68C8;
+  --color-light-blue: #E3F2FD;
+  --color-light-purple: #F3E5F5;
+  --color-surface: #FFFFFF;
+  --color-input-bg: #F0F2F5;
+  
+  --color-status-ongoing: #22C55E;
+  --color-status-pending: #F97316;
+  --color-status-completed: #6B7280;
+  --color-status-breached: #EF4444;
+
+  --font-family-poppins: 'Poppins', sans-serif;
+}
+
+/* Base styles */
+body {
+  font-family: var(--font-family-poppins);
+  background-color: var(--color-background);
+  color: var(--color-body);
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom gradient utilities */
+.gradient-primary {
+  background: linear-gradient(135deg, var(--color-primary-start), var(--color-primary-mid), var(--color-primary-end));
+}
+
+.gradient-background {
+  background: linear-gradient(90deg, var(--color-light-blue), var(--color-light-purple));
+}
+
+.gradient-purple {
+  background: linear-gradient(135deg, var(--color-secondary), var(--color-secondary-light));
+}
+
+/* Card shadow */
+.card-shadow {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-input-bg);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary-mid);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
