@@ -41,7 +41,7 @@ const baseTabs = [
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { currentUser, isAuthenticated } = useAuth()
-  const { contracts, getAllContractsForUser, getPendingContractsForUser, stats } = useContracts()
+  const { contracts, getAllContractsForUser, getPendingContractsForUser, stats, loadUserContracts } = useContracts()
   const [activeTab, setActiveTab] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContract, setSelectedContract] = useState(null)
@@ -55,6 +55,13 @@ export default function DashboardPage() {
       navigate('/login')
     }
   }, [isAuthenticated, currentUser, navigate])
+
+  // Load contracts from Supabase when user logs in
+  useEffect(() => {
+    if (currentUser?.id) {
+      loadUserContracts(currentUser.id)
+    }
+  }, [currentUser?.id, loadUserContracts])
 
   // Get user's contracts
   const userContracts = useMemo(() => {

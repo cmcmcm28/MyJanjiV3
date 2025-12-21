@@ -36,6 +36,7 @@ import SignaturePad from '../components/features/SignaturePad'
 import NFCScanner from '../components/features/NFCScanner'
 import PDFPreviewModal from '../components/features/PDFPreviewModal'
 import faceAuthService from '../services/faceAuthService'
+import { storageService } from '../services/supabase/storageService'
 
 const iconMap = {
   Car,
@@ -60,7 +61,7 @@ const steps = [
 export default function CreateContractPage() {
   const navigate = useNavigate()
   const { currentUser } = useAuth()
-  const { addContract } = useContracts()
+  const { addContract, updateContract } = useContracts()
   const webcamRef = useRef(null)
   
   const [currentStep, setCurrentStep] = useState(0)
@@ -209,9 +210,10 @@ export default function CreateContractPage() {
     setCreatorSignature(signature)
   }
 
-  const handleCreateContract = () => {
-    if (!creatorSignature) return
+  const handleCreateContract = async () => {
+    if (!creatorSignature || !currentUser) return
 
+    try {
     const newContract = {
       name: formData.name || selectedTemplate?.name || 'Untitled Contract',
       topic: formData.topic || selectedTemplate?.description || '',
@@ -221,17 +223,71 @@ export default function CreateContractPage() {
       dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       templateType: selectedTemplate?.id,
       formData: { ...formData },
-      creatorSignature,
+        creatorSignature, // Will be updated after upload
       accepteeSignature: null,
       signatureDate: new Date(),
       // Store verification data
-      nfcVerification: nfcData,
-      faceVerified: faceVerified,
+        creatorNfcVerified: nfcData ? true : false,
+        creatorFaceVerified: faceVerified,
     }
 
-    const createdContract = addContract(newContract)
+      // Create contract first to get the contract ID
+      const createdContract = await addContract(newContract)
+      const contractId = createdContract.id
+
+      // Now upload signature with the actual contract ID
+      try {
+        const base64Data = creatorSignature.split(',')[1] || creatorSignature
+        const byteCharacters = atob(base64Data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: 'image/png' })
+        const file = new File([blob], `signature-${contractId}.png`, { type: 'image/png' })
+
+        const { data: uploadData, error: uploadError } = await storageService.uploadSignature(
+          currentUser.id,
+          contractId,
+          file,
+          'creator'
+        )
+        
+        if (!uploadError && uploadData) {
+          // Update contract with signature URL
+          await updateContract(contractId, {
+            creatorSignature: uploadData.url
+          })
+        }
+      } catch (uploadError) {
+        console.error('Error uploading signature:', uploadError)
+        // Contract is still created, signature just not uploaded to storage
+      }
+      
     // Navigate to contract created page with the contract
     navigate('/contract-created', { state: { contract: createdContract } })
+    } catch (error) {
+      console.error('Error creating contract:', error)
+      // Fallback: create contract without uploading signature
+      const newContract = {
+        name: formData.name || selectedTemplate?.name || 'Untitled Contract',
+        topic: formData.topic || selectedTemplate?.description || '',
+        userId: currentUser.id,
+        accepteeId: formData.accepteeId,
+        status: 'Pending',
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        templateType: selectedTemplate?.id,
+        formData: { ...formData },
+        creatorSignature,
+        accepteeSignature: null,
+        signatureDate: new Date(),
+        creatorNfcVerified: nfcData ? true : false,
+        creatorFaceVerified: faceVerified,
+      }
+      const createdContract = await addContract(newContract)
+      navigate('/contract-created', { state: { contract: createdContract } })
+    }
   }
 
   const renderCategoryStep = () => (
@@ -764,7 +820,7 @@ export default function CreateContractPage() {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
     >
-      <Card padding="lg">
+      <Card className="max-w-md mx-auto" padding="lg">
         <div className="text-center mb-4">
           <ScanFace className="h-12 w-12 text-primary mx-auto mb-3" />
           <h3 className="text-xl font-bold text-header mb-2">Face Verification</h3>

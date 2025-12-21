@@ -1,7 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ContractProvider } from './context/ContractContext'
+import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import CreateContractPage from './pages/CreateContractPage'
 import ContractCreatedPage from './pages/ContractCreatedPage'
@@ -18,7 +20,8 @@ function App() {
     <AuthProvider>
       <ContractProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/biometric-login" element={<BiometricLoginPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />

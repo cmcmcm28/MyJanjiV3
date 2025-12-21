@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { users } from '../utils/dummyData'
+import { userService } from '../services/supabase/userService'
 
 const AuthContext = createContext(null)
 
@@ -7,15 +8,78 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isFaceVerified, setIsFaceVerified] = useState(false)
+  const [availableUsers, setAvailableUsers] = useState(Object.values(users))
+  const [loading, setLoading] = useState(true)
 
-  const login = useCallback((userId) => {
-    const user = users[userId]
-    if (user) {
-      setCurrentUser(user)
-      setIsAuthenticated(true)
-      return true
+  // Load available users from Supabase on mount
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const { data, error } = await userService.getAllUsers()
+        if (!error && data && data.length > 0) {
+          // Transform Supabase users to match frontend structure
+          const transformed = data.map(user => ({
+            id: user.user_id,
+            name: user.name,
+            ic: user.ic_hash || '', // Note: This is a hash, not the actual IC
+            avatar: user.avatar || '/images/default-avatar.png',
+            email: user.email || '',
+            phone: user.phone || '',
+          }))
+          setAvailableUsers(transformed)
+        } else {
+          // Fallback to dummy data if Supabase fails or no users
+          setAvailableUsers(Object.values(users))
+        }
+      } catch (error) {
+        console.error('Error loading users:', error)
+        setAvailableUsers(Object.values(users))
+      } finally {
+        setLoading(false)
+      }
     }
-    return false
+    loadUsers()
+  }, [])
+
+  const login = useCallback(async (userId) => {
+    try {
+      // Try to get user from Supabase
+      const { data: supabaseUser, error } = await userService.getProfile(userId)
+      
+      if (!error && supabaseUser) {
+        // Transform Supabase user to match frontend structure
+        const user = {
+          id: supabaseUser.user_id,
+          name: supabaseUser.name,
+          ic: supabaseUser.ic_hash || '',
+          avatar: supabaseUser.avatar || '/images/default-avatar.png',
+          email: supabaseUser.email || '',
+          phone: supabaseUser.phone || '',
+        }
+        setCurrentUser(user)
+        setIsAuthenticated(true)
+        return true
+      } else {
+        // Fallback to dummy data
+        const user = users[userId]
+        if (user) {
+          setCurrentUser(user)
+          setIsAuthenticated(true)
+          return true
+        }
+      }
+      return false
+    } catch (error) {
+      console.error('Login error:', error)
+      // Fallback to dummy data
+      const user = users[userId]
+      if (user) {
+        setCurrentUser(user)
+        setIsAuthenticated(true)
+        return true
+      }
+      return false
+    }
   }, [])
 
   const logout = useCallback(() => {
@@ -40,7 +104,8 @@ export function AuthProvider({ children }) {
     logout,
     verifyFace,
     resetFaceVerification,
-    availableUsers: Object.values(users),
+    availableUsers,
+    loading,
   }
 
   return (

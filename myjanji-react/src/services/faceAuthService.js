@@ -46,6 +46,7 @@ export const faceAuthService = {
       return {
         success: data.status === 'success',
         message: data.message || (data.status === 'success' ? 'IC uploaded successfully' : 'Upload failed'),
+        ocrData: data.ocr_data || null, // Include OCR extracted data
         data,
       }
     } catch (error) {
@@ -53,6 +54,65 @@ export const faceAuthService = {
       return {
         success: false,
         message: 'Failed to connect to face recognition server. Make sure the Python backend is running.',
+        error: error.message,
+      }
+    }
+  },
+
+  // Extract IC details using OCR (dedicated endpoint)
+  async extractICDetails(imageFile) {
+    try {
+      console.log('🔍 extractICDetails called with:', typeof imageFile)
+      const formData = new FormData()
+      
+      // If it's a base64 string, convert to blob
+      if (typeof imageFile === 'string' && imageFile.startsWith('data:')) {
+        const response = await fetch(imageFile)
+        const blob = await response.blob()
+        formData.append('ic_image', blob, 'ic_photo.jpg')
+        console.log('📤 Converted base64 to blob')
+      } else if (imageFile instanceof File) {
+        formData.append('ic_image', imageFile)
+        console.log('📤 Using File object:', imageFile.name)
+      } else if (imageFile instanceof Blob) {
+        formData.append('ic_image', imageFile, 'ic_photo.jpg')
+        console.log('📤 Using Blob object')
+      } else {
+        console.error('❌ Unknown imageFile type:', typeof imageFile)
+        return {
+          success: false,
+          error: 'Invalid image file type',
+        }
+      }
+
+      console.log('📡 Sending request to /extract_ic...')
+      const response = await fetch(`${API_BASE_URL}/extract_ic`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        console.error('❌ Response not OK:', response.status, response.statusText)
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
+        return {
+          success: false,
+          error: `Server error: ${response.status}`,
+        }
+      }
+
+      const data = await response.json()
+      console.log('📥 Received OCR response:', data)
+      
+      return {
+        success: data.status === 'success',
+        data: data.data || null,
+        error: data.message || (data.data?.error) || null,
+      }
+    } catch (error) {
+      console.error('❌ IC extraction error:', error)
+      return {
+        success: false,
         error: error.message,
       }
     }

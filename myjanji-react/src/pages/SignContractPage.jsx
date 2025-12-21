@@ -31,10 +31,11 @@ import NFCScanner from '../components/features/NFCScanner'
 import PDFPreviewModal from '../components/features/PDFPreviewModal'
 
 const steps = [
-  { id: 0, label: 'Review & Consent', icon: FileText },
-  { id: 1, label: 'NFC Scan', icon: Nfc },
-  { id: 2, label: 'Face Verify', icon: ScanFace },
-  { id: 3, label: 'Sign', icon: Check },
+  { id: 0, label: 'NFC Scan', icon: Nfc },
+  { id: 1, label: 'Face Verify', icon: ScanFace },
+  { id: 2, label: 'Review & Consent', icon: FileText },
+  { id: 3, label: 'Preview', icon: Eye },
+  { id: 4, label: 'Sign', icon: Check },
 ]
 
 export default function SignContractPage() {
@@ -44,7 +45,7 @@ export default function SignContractPage() {
   const { getContractById, signContract, declineContract } = useContracts()
 
   const [contract, setContract] = useState(null)
-  const [currentStep, setCurrentStep] = useState(0)
+  const [currentStep, setCurrentStep] = useState(0) // Start with NFC Scan
   const [hasConsented, setHasConsented] = useState(false)
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [showDeclineModal, setShowDeclineModal] = useState(false)
@@ -65,21 +66,21 @@ export default function SignContractPage() {
     setNfcData(data)
     // Auto-advance to face verification after brief delay
     setTimeout(() => {
-      setCurrentStep(2)
+      setCurrentStep(1)
     }, 1500)
   }
 
   const handleNFCSkip = () => {
     // For demo: skip NFC and go to face verification
     setNfcData({ skipped: true, timestamp: new Date().toISOString() })
-    setCurrentStep(2)
+    setCurrentStep(1)
   }
 
   const handleFaceVerified = (result) => {
     setIsFaceVerified(true)
-    // Auto-advance to signature step after brief delay
+    // Auto-advance to review & consent step after brief delay
     setTimeout(() => {
-      setCurrentStep(3)
+      setCurrentStep(2)
     }, 1500)
   }
 
@@ -92,18 +93,23 @@ export default function SignContractPage() {
   }
 
   const handleSubmitSignature = async () => {
-    if (!signature || !contract) return
+    if (!signature || !contract || !currentUser) return
 
     setIsSubmitting(true)
 
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    try {
+      // Update contract with signature (will upload to Supabase storage)
+      await signContract(contract.id, signature, true, currentUser.id)
 
-    // Update contract with signature
-    signContract(contract.id, signature, true)
-
-    // Navigate back to dashboard
-    navigate('/dashboard')
+      // Navigate back to dashboard
+      navigate('/dashboard')
+    } catch (error) {
+      console.error('Error submitting signature:', error)
+      // Still navigate even if there's an error (signature saved locally)
+      navigate('/dashboard')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleReject = () => {
@@ -187,8 +193,88 @@ export default function SignContractPage() {
 
         {/* Step Content */}
         <AnimatePresence mode="wait">
-          {/* Step 0: Review Contract, Preview PDF & Consent */}
+          {/* Step 0: NFC Scan */}
           {currentStep === 0 && (
+            <motion.div
+              key="nfc"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <Card padding="lg">
+                <NFCScanner
+                  onSuccess={handleNFCSuccess}
+                  onSkip={handleNFCSkip}
+                  title="Verify Your Identity"
+                  description="Scan your MyKad NFC chip to verify your identity before face verification"
+                />
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Step 1: Live Face Verification */}
+          {currentStep === 1 && (
+            <motion.div
+              key="face"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <Card padding="lg">
+                <div className="text-center mb-6">
+                  <ScanFace className="h-12 w-12 text-primary mx-auto mb-3" />
+                  <h2 className="text-xl font-bold text-header mb-2">Live Face Verification</h2>
+                  <p className="text-body/60 text-sm">
+                    Position your face in the frame. Verification runs automatically.
+                  </p>
+                </div>
+
+                {/* NFC Data Preview */}
+                {nfcData && !nfcData.skipped && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+                    <div className="flex items-center gap-2 text-green-700 text-sm">
+                      <Check className="h-4 w-4" />
+                      <span>MyKad Verified: {nfcData.icNumber}</span>
+                    </div>
+                  </div>
+                )}
+
+                <LiveFaceVerification
+                  onVerified={handleFaceVerified}
+                  onError={handleFaceError}
+                  interval={1000}
+                />
+
+                {isFaceVerified && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 text-center"
+                  >
+                    <p className="text-status-ongoing font-medium">
+                      Face verified! Proceeding to review...
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* Skip button for demo */}
+                <div className="mt-6 pt-4 border-t border-gray-100 text-center">
+                  <button
+                    onClick={() => {
+                      setIsFaceVerified(true)
+                      setCurrentStep(2)
+                    }}
+                    className="text-sm text-body/50 hover:text-primary transition-colors"
+                  >
+                    Skip verification (Demo)
+                  </button>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Step 2: Review & Consent */}
+          {currentStep === 2 && (
             <motion.div
               key="review"
               initial={{ opacity: 0, x: 20 }}
@@ -205,6 +291,34 @@ export default function SignContractPage() {
 
                 <h2 className="text-xl font-bold text-header mb-2">{contract.name}</h2>
                 <p className="text-body/60 mb-6">{contract.topic}</p>
+
+                {/* Verification Status */}
+                <div className="flex gap-3 mb-6">
+                  <div className={`flex-1 p-3 rounded-xl ${nfcData ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {nfcData ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Nfc className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${nfcData ? 'text-green-700' : 'text-body/40'}`}>
+                        NFC {nfcData ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`flex-1 p-3 rounded-xl ${isFaceVerified ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {isFaceVerified ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <ScanFace className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${isFaceVerified ? 'text-green-700' : 'text-body/40'}`}>
+                        Face {isFaceVerified ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Parties */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
@@ -249,18 +363,6 @@ export default function SignContractPage() {
                   </div>
                 </div>
 
-                {/* Preview PDF Button */}
-                <div className="mb-6">
-                  <Button
-                    onClick={() => setShowPdfPreview(true)}
-                    variant="outline"
-                    icon={Eye}
-                    className="w-full"
-                  >
-                    Preview Contract PDF (Signed by {creator?.name})
-                  </Button>
-                </div>
-
                 {/* Consent Checkbox */}
                 <div className="mb-6 pt-4 border-t border-gray-100">
                   <button
@@ -280,7 +382,7 @@ export default function SignContractPage() {
                       </p>
                       <p className="text-xs text-body/50 mt-1">
                         I confirm that I have read and understand all terms and conditions in this contract.
-                        I agree to proceed with identity verification and signing.
+                        I agree to proceed with preview and signing.
                       </p>
                     </div>
                   </button>
@@ -292,14 +394,10 @@ export default function SignContractPage() {
                   <div className={`space-y-2 text-sm ${hasConsented ? 'text-blue-700' : 'text-body/40'}`}>
                     <div className="flex items-center gap-2">
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${hasConsented ? 'bg-blue-200' : 'bg-gray-200'}`}>1</div>
-                      <span>NFC Scan - Verify your MyKad chip</span>
+                      <span>Preview Contract - Review the contract PDF</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${hasConsented ? 'bg-blue-200' : 'bg-gray-200'}`}>2</div>
-                      <span>Face ID - Live face verification</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${hasConsented ? 'bg-blue-200' : 'bg-gray-200'}`}>3</div>
                       <span>Digital Signature - Sign the contract</span>
                     </div>
                   </div>
@@ -318,102 +416,95 @@ export default function SignContractPage() {
                   <Button
                     className="flex-1"
                     icon={Check}
-                    onClick={() => setCurrentStep(1)}
+                    onClick={() => setCurrentStep(3)}
                     disabled={!hasConsented}
                   >
-                    {hasConsented ? 'Continue' : 'Please consent above'}
+                    {hasConsented ? 'Continue to Preview' : 'Please consent above'}
                   </Button>
                 </div>
               </Card>
 
               <p className="text-xs text-body/40 text-center mt-4 px-4">
-                By accepting, you agree to verify your identity and sign this contract.
+                Your identity has been verified. Please review and consent to proceed.
               </p>
             </motion.div>
           )}
 
-          {/* Step 1: NFC Scan */}
-          {currentStep === 1 && (
+          {/* Step 3: Preview PDF */}
+          {currentStep === 3 && (
             <motion.div
-              key="nfc"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-            >
-              <Card padding="lg">
-                <NFCScanner
-                  onSuccess={handleNFCSuccess}
-                  onSkip={handleNFCSkip}
-                  title="Verify Your Identity"
-                  description="Scan your MyKad NFC chip to verify your identity before face verification"
-                />
-              </Card>
-            </motion.div>
-          )}
-
-          {/* Step 2: Live Face Verification */}
-          {currentStep === 2 && (
-            <motion.div
-              key="face"
+              key="preview"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
               <Card padding="lg">
                 <div className="text-center mb-6">
-                  <ScanFace className="h-12 w-12 text-primary mx-auto mb-3" />
-                  <h2 className="text-xl font-bold text-header mb-2">Live Face Verification</h2>
-                  <p className="text-body/60 text-sm">
-                    Position your face in the frame. Verification runs automatically.
+                  <Eye className="h-12 w-12 text-primary mx-auto mb-3" />
+                  <h2 className="text-xl font-bold text-header mb-2">Preview Contract</h2>
+                  <p className="text-body/60 text-sm mb-4">
+                    Review the contract PDF before signing. Your identity has been verified.
                   </p>
                 </div>
 
-                {/* NFC Data Preview */}
-                {nfcData && !nfcData.skipped && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
-                    <div className="flex items-center gap-2 text-green-700 text-sm">
-                      <Check className="h-4 w-4" />
-                      <span>MyKad Verified: {nfcData.icNumber}</span>
+                {/* Verification Status */}
+                <div className="flex gap-3 mb-6">
+                  <div className={`flex-1 p-3 rounded-xl ${nfcData ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {nfcData ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Nfc className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${nfcData ? 'text-green-700' : 'text-body/40'}`}>
+                        NFC {nfcData ? 'Verified' : 'Pending'}
+                      </span>
                     </div>
                   </div>
-                )}
-
-                <LiveFaceVerification
-                  onVerified={handleFaceVerified}
-                  onError={handleFaceError}
-                  interval={1000}
-                />
-
-                {isFaceVerified && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-4 text-center"
-                  >
-                    <p className="text-status-ongoing font-medium">
-                      Face verified! Proceeding to signature...
-                    </p>
-                  </motion.div>
-                )}
-
-                {/* Skip button for demo */}
-                <div className="mt-6 pt-4 border-t border-gray-100 text-center">
-                  <button
-                    onClick={() => {
-                      setIsFaceVerified(true)
-                      setCurrentStep(3)
-                    }}
-                    className="text-sm text-body/50 hover:text-primary transition-colors"
-                  >
-                    Skip verification (Demo)
-                  </button>
+                  <div className={`flex-1 p-3 rounded-xl ${isFaceVerified ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {isFaceVerified ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <ScanFace className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${isFaceVerified ? 'text-green-700' : 'text-body/40'}`}>
+                        Face {isFaceVerified ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Preview PDF Button */}
+                <div className="mb-6">
+                  <Button
+                    onClick={() => setShowPdfPreview(true)}
+                    variant="outline"
+                    icon={Eye}
+                    className="w-full"
+                  >
+                    Preview Contract PDF (Signed by {creator?.name})
+                  </Button>
+                </div>
+
+                {/* Continue to Sign Button */}
+                <Button
+                  fullWidth
+                  onClick={() => setCurrentStep(4)}
+                  icon={Check}
+                >
+                  Continue to Sign
+                </Button>
               </Card>
+
+              <p className="text-xs text-body/40 text-center mt-4 px-4">
+                Please review the contract carefully before proceeding to sign.
+              </p>
             </motion.div>
           )}
 
-          {/* Step 3: Signature */}
-          {currentStep === 3 && (
+          {/* Step 4: Signature */}
+          {currentStep === 4 && (
             <motion.div
               key="sign"
               initial={{ opacity: 0, x: 20 }}
