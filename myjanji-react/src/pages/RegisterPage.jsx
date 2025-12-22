@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Webcam from 'react-webcam'
@@ -15,9 +15,11 @@ import {
   UserPlus,
   Wifi,
   WifiOff,
+  Smartphone,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import faceAuthService from '../services/faceAuthService'
+import { userService } from '../services/supabase/userService'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
@@ -26,7 +28,8 @@ const steps = [
   { id: 0, label: 'Upload IC', icon: CreditCard },
   { id: 1, label: 'Face Scan', icon: ScanFace },
   { id: 2, label: 'Details', icon: UserPlus },
-  { id: 3, label: 'Complete', icon: CheckCircle },
+  { id: 3, label: 'Tap NFC', icon: Smartphone },
+  { id: 4, label: 'Complete', icon: CheckCircle },
 ]
 
 export default function RegisterPage() {
@@ -44,7 +47,16 @@ export default function RegisterPage() {
   const [backendOnline, setBackendOnline] = useState(null)
   const [errorMessage, setErrorMessage] = useState(null)
   const [ocrExtracted, setOcrExtracted] = useState(null) // Store OCR results for display
-  
+
+  // NFC state
+  const [nfcChipId, setNfcChipId] = useState('')
+  const [isNfcScanning, setIsNfcScanning] = useState(false)
+  const [nfcSupported, setNfcSupported] = useState(false)
+
+  // Additional registration data
+  const [dob, setDob] = useState('') // Date of birth from OCR
+  const [faceEmbedding, setFaceEmbedding] = useState(null) // Face embedding from IC upload
+
   // Registration form data
   const [formData, setFormData] = useState({
     name: '',
@@ -88,10 +100,10 @@ export default function RegisterPage() {
       console.log('🔍 Starting OCR extraction...')
       const ocrResult = await faceAuthService.extractICDetails(icFile || icPreview)
       console.log('📋 OCR Result:', ocrResult)
-      
+
       if (ocrResult.success && ocrResult.data) {
         const extracted = ocrResult.data
-        
+
         // Check if there's an error in the data
         if (extracted.error) {
           console.warn('⚠️ OCR extraction error:', extracted.error)
@@ -107,6 +119,11 @@ export default function RegisterPage() {
             console.log('📝 Updated formData:', updated)
             return updated
           })
+          // Store DOB from OCR
+          if (extracted.dateOfBirth) {
+            setDob(extracted.dateOfBirth)
+            console.log('📅 DOB extracted:', extracted.dateOfBirth)
+          }
         }
       } else {
         console.warn('⚠️ OCR extraction failed or returned no data')
@@ -118,6 +135,12 @@ export default function RegisterPage() {
       console.log('📥 Upload result:', result)
 
       if (result.success) {
+        // Store face embedding from upload
+        if (result.faceEmbedding) {
+          setFaceEmbedding(result.faceEmbedding)
+          console.log('🧠 Face embedding captured (length:', result.faceEmbedding.length, ')')
+        }
+
         // Also check if OCR data came from upload endpoint (backup)
         if (result.ocrData && !result.ocrData.error) {
           const extracted = result.ocrData
@@ -132,6 +155,11 @@ export default function RegisterPage() {
             console.log('📝 Updated formData from upload:', updated)
             return updated
           })
+          // Also capture DOB from upload OCR (backup)
+          if (extracted.dateOfBirth && !dob) {
+            setDob(extracted.dateOfBirth)
+            console.log('📅 DOB from upload OCR:', extracted.dateOfBirth)
+          }
         }
         setCurrentStep(1) // Move to face scan step
       } else {
@@ -154,11 +182,18 @@ export default function RegisterPage() {
 
     const result = await faceAuthService.verifyFrame(imageSrc)
 
+    console.log('Face verification result:', result) // Debug log
+
+    // Always update score if available (even during scanning)
+    if (result.score !== undefined && result.score !== null) {
+      console.log('Setting score:', result.score) // Debug log
+      setScanScore(result.score)
+    }
+
     if (result.success) {
       // Face verified!
       setIsScanning(false)
       setScanResult('success')
-      setScanScore(result.score)
 
       // Move to details step after brief delay
       setTimeout(() => {
@@ -166,11 +201,13 @@ export default function RegisterPage() {
       }, 1500)
     } else if (result.status === 'fail') {
       setScanResult('mismatch')
-      setScanScore(result.score)
+      // Keep scanning if mismatch (don't stop)
     } else if (result.noFace) {
       setScanResult('no_face')
+      // Reset score when no face detected
+      setScanScore(null)
     } else {
-      setScanResult('error')
+      setScanResult('scanning') // Keep as scanning state instead of error
     }
   }, [isScanning])
 
@@ -187,29 +224,104 @@ export default function RegisterPage() {
   useEffect(() => {
     if (currentStep === 1) {
       setIsScanning(true)
-      setScanResult(null)
+      setScanResult('scanning') // Set initial state to 'scanning' instead of null
       setScanScore(null)
     } else {
       setIsScanning(false)
     }
   }, [currentStep])
 
-  // Handle registration
-  const handleRegister = async () => {
+  // Handle proceeding to NFC step (validates form first)
+  const handleProceedToNfc = () => {
     if (!formData.name || !formData.email || !formData.icNumber) {
       setErrorMessage('Please fill in all required fields')
       return
     }
-
-    // TODO: Implement actual registration with Supabase
-    // For now, just show success
-    setCurrentStep(3)
-    
-    // Navigate to login after showing success
-    setTimeout(() => {
-      navigate('/login')
-    }, 2000)
+    setErrorMessage(null)
+    setCurrentStep(3) // Move to NFC tap step
   }
+
+  // Handle final registration with NFC chip ID
+  const handleCompleteRegistration = async () => {
+    if (!nfcChipId) {
+      setErrorMessage('Please tap your ID card or enter the NFC chip ID')
+      return
+    }
+
+    setIsUploading(true)
+    setErrorMessage(null)
+
+    try {
+      // Map form data to Supabase user table columns:
+      // - name -> name
+      // - email -> email
+      // - phone -> phone
+      // - icNumber -> user_id
+      // - nfcChipId -> nfc_chip_id
+      // - dob -> dob
+      // - faceEmbedding -> face_embedding
+      const { data, error } = await userService.createProfile(formData.icNumber, {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        nfc_chip_id: nfcChipId,
+        dob: dob || null,
+        face_embedding: faceEmbedding || null,
+      })
+
+      if (error) {
+        console.error('Registration error:', error)
+        setErrorMessage(error.message || 'Failed to register. Please try again.')
+        setIsUploading(false)
+        return
+      }
+
+      console.log('✅ User registered successfully:', data)
+      setCurrentStep(4) // Move to Complete step
+
+      // Navigate to login after showing success
+      setTimeout(() => {
+        navigate('/login')
+      }, 2000)
+    } catch (error) {
+      console.error('Registration error:', error)
+      setErrorMessage('Failed to register. Please try again.')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  // Start NFC scanning
+  const startNfcScan = async () => {
+    if ('NDEFReader' in window) {
+      setIsNfcScanning(true)
+      setErrorMessage(null)
+      try {
+        const ndef = new window.NDEFReader()
+        await ndef.scan()
+        ndef.addEventListener('reading', ({ serialNumber }) => {
+          console.log('📱 NFC Card detected:', serialNumber)
+          setNfcChipId(serialNumber)
+          setIsNfcScanning(false)
+        })
+        ndef.addEventListener('readingerror', () => {
+          setErrorMessage('Failed to read NFC card. Please try again.')
+          setIsNfcScanning(false)
+        })
+      } catch (error) {
+        console.error('NFC scan error:', error)
+        setErrorMessage('NFC scanning failed. Please enter the chip ID manually.')
+        setIsNfcScanning(false)
+      }
+    } else {
+      setErrorMessage('NFC is not supported on this device. Please enter the chip ID manually.')
+    }
+  }
+
+  // Check NFC support on mount
+  useEffect(() => {
+    setNfcSupported('NDEFReader' in window)
+  }, [])
 
   return (
     <div className="min-h-screen gradient-background flex flex-col">
@@ -253,20 +365,19 @@ export default function RegisterPage() {
               Register New Account
             </h2>
 
-            {/* Step Indicator */}
-            <div className="flex items-center justify-center mb-8">
+            <div className="flex items-start justify-between mb-8 w-full px-1">
               {steps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
-                  <div className="flex flex-col items-center">
+                <React.Fragment key={step.id}>
+                  <div className="flex flex-col items-center relative z-10 group">
                     <div
                       className={`
                         w-10 h-10 rounded-full flex items-center justify-center
                         transition-all duration-300
                         ${currentStep > step.id
-                          ? 'bg-status-ongoing text-white'
+                          ? 'bg-status-ongoing text-white shadow-md'
                           : currentStep === step.id
-                            ? 'gradient-primary text-white'
-                            : 'bg-gray-200 text-body/40'
+                            ? 'gradient-primary text-white shadow-lg ring-2 ring-offset-2 ring-primary/20'
+                            : 'bg-gray-100 text-body/40'
                         }
                       `}
                     >
@@ -276,17 +387,17 @@ export default function RegisterPage() {
                         <step.icon className="h-5 w-5" />
                       )}
                     </div>
-                    <span className={`text-xs mt-1.5 font-medium ${currentStep >= step.id ? 'text-header' : 'text-body/40'}`}>
+                    <span className={`text-[10px] sm:text-xs mt-2 font-medium text-center max-w-[4rem] leading-tight transition-colors duration-300 ${currentStep >= step.id ? 'text-header' : 'text-body/40'}`}>
                       {step.label}
                     </span>
                   </div>
                   {index < steps.length - 1 && (
                     <div
-                      className={`w-12 h-0.5 mx-1 mt-[-18px] transition-colors duration-300 ${currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
+                      className={`flex-1 h-[2px] mx-1 mt-5 rounded-full transition-all duration-500 ease-in-out ${currentStep > index ? 'bg-status-ongoing' : 'bg-gray-100'
                         }`}
                     />
                   )}
-                </div>
+                </React.Fragment>
               ))}
             </div>
 
@@ -408,12 +519,11 @@ export default function RegisterPage() {
                     />
 
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${
-                        scanResult === 'success' ? 'border-green-500' :
+                      <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${scanResult === 'success' ? 'border-green-500' :
                         scanResult === 'mismatch' ? 'border-red-500' :
-                        scanResult === 'no_face' ? 'border-yellow-500' :
-                        'border-white/50'
-                      }`} />
+                          scanResult === 'no_face' ? 'border-yellow-500' :
+                            'border-white/50'
+                        }`} />
                     </div>
 
                     {isScanning && (
@@ -426,12 +536,11 @@ export default function RegisterPage() {
                     )}
                   </div>
 
-                  <div className={`text-center p-3 rounded-xl mb-4 ${
-                    scanResult === 'success' ? 'bg-green-50 text-green-700' :
+                  <div className={`text-center p-3 rounded-xl mb-4 ${scanResult === 'success' ? 'bg-green-50 text-green-700' :
                     scanResult === 'mismatch' ? 'bg-red-50 text-red-700' :
-                    scanResult === 'no_face' ? 'bg-yellow-50 text-yellow-700' :
-                    'bg-blue-50 text-blue-700'
-                  }`}>
+                      scanResult === 'no_face' ? 'bg-yellow-50 text-yellow-700' :
+                        'bg-blue-50 text-blue-700'
+                    }`}>
                     {scanResult === 'success' ? (
                       <div className="flex items-center justify-center gap-2">
                         <CheckCircle className="h-5 w-5" />
@@ -440,7 +549,7 @@ export default function RegisterPage() {
                     ) : scanResult === 'mismatch' ? (
                       <div className="flex items-center justify-center gap-2">
                         <AlertCircle className="h-5 w-5" />
-                        <span>Face mismatch. Please try again.</span>
+                        <span>Face mismatch. Score: {scanScore !== null && scanScore !== undefined ? `${scanScore}%` : 'N/A'} (Required: 45%)</span>
                       </div>
                     ) : scanResult === 'no_face' ? (
                       <div className="flex items-center justify-center gap-2">
@@ -450,7 +559,11 @@ export default function RegisterPage() {
                     ) : (
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Scanning your face...</span>
+                        <span>
+                          {scanScore !== null && scanScore !== undefined
+                            ? `Scanning... Score: ${scanScore}%`
+                            : 'Scanning your face...'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -528,18 +641,102 @@ export default function RegisterPage() {
                   <Button
                     fullWidth
                     className="mt-6"
-                    onClick={handleRegister}
-                    icon={CheckCircle}
+                    onClick={handleProceedToNfc}
+                    icon={Smartphone}
                   >
-                    Complete Registration
+                    Tap ID Card
                   </Button>
                 </motion.div>
               )}
 
-              {/* Step 3: Complete */}
+              {/* Step 3: NFC Tap */}
               {currentStep === 3 && (
                 <motion.div
                   key="step3"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <div className="text-center mb-6">
+                    <Smartphone className="h-16 w-16 text-primary mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-header mb-2">Tap Your ID Card</h3>
+                    <p className="text-body/60 text-sm">
+                      {nfcSupported
+                        ? 'Hold your MyKad near your device to scan the NFC chip'
+                        : 'Enter your NFC chip ID manually below'}
+                    </p>
+                  </div>
+
+                  {errorMessage && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-sm">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      {errorMessage}
+                    </div>
+                  )}
+
+                  {/* NFC Chip ID Input (optimized for USB Keyboard Readers) */}
+                  <div className="mb-6">
+                    <p className="text-sm text-body/60 mb-2">
+                      Ready to scan. Tap your card on the reader.
+                    </p>
+                    <div className="relative">
+                      <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <input
+                        ref={(input) => {
+                          // Auto-focus when mounting or updating
+                          if (input && currentStep === 3) {
+                            input.focus()
+                          }
+                        }}
+                        type="password"
+                        value={nfcChipId}
+                        onChange={(e) => setNfcChipId(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            if (nfcChipId) {
+                              handleCompleteRegistration()
+                            }
+                          }
+                        }}
+                        // Keep focus for continuous scanning if needed
+                        onBlur={(e) => {
+                          // Optional: force focus back if you want exclusive reader mode
+                          // e.target.focus() 
+                        }}
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-mono text-center text-lg tracking-wider"
+                        placeholder="Waiting for card..."
+                        autoFocus
+                      />
+                    </div>
+                    {nfcChipId ? (
+                      <div className="flex items-center justify-center gap-2 text-green-600 text-sm mt-2">
+                        <CheckCircle className="h-4 w-4" />
+                        <span>Card detected! Click Complete Registration to continue.</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-center text-body/40 mt-2">
+                        Reader mode active. Tap your ID card.
+                      </p>
+                    )}
+                  </div>
+
+                  <Button
+                    fullWidth
+                    onClick={handleCompleteRegistration}
+                    disabled={!nfcChipId || isUploading}
+                    loading={isUploading}
+                    icon={isUploading ? Loader2 : CheckCircle}
+                  >
+                    {isUploading ? 'Registering...' : 'Complete Registration'}
+                  </Button>
+                </motion.div>
+              )}
+
+              {/* Step 4: Complete */}
+              {currentStep === 4 && (
+                <motion.div
+                  key="step4"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
@@ -556,6 +753,39 @@ export default function RegisterPage() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Loading Overlay - Shows during IC processing */}
+      <AnimatePresence>
+        {isUploading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm mx-4"
+            >
+              <div className="relative mx-auto mb-4 w-16 h-16">
+                <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <CreditCard className="absolute inset-0 m-auto h-6 w-6 text-primary" />
+              </div>
+              <h3 className="text-lg font-bold text-header mb-2">Processing Your IC</h3>
+              <p className="text-body/60 text-sm mb-3">
+                Extracting details and verifying...
+              </p>
+              <div className="flex items-center justify-center gap-1 text-xs text-body/40">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>This may take 10-15 seconds</span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

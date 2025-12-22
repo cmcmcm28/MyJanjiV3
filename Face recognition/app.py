@@ -36,6 +36,7 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 MODEL_NAME = "Facenet512"  # Keep original model for compatibility
 PASSING_THRESHOLD_DISTANCE = 20.0  # Original threshold
+PASSING_THRESHOLD_PERCENTAGE = 45.0  # Minimum score percentage to pass
 MAX_IMAGE_SIZE = 800  # Maximum dimension for image processing to reduce memory
 
 # --- AI WARMUP ---
@@ -56,7 +57,8 @@ except Exception as e:
 
 
 def get_db_connection():
-    return psycopg2.connect(DB_URI)
+    """Get database connection with timeout"""
+    return psycopg2.connect(DB_URI, connect_timeout=10)
 
 
 # Initialize EasyOCR reader (lazy loading)
@@ -67,9 +69,14 @@ def get_ocr_reader():
     global ocr_reader
     if ocr_reader is None and EASYOCR_AVAILABLE:
         print("⏳ Initializing EasyOCR (this may take a moment)...")
-        ocr_reader = easyocr.Reader(
-            ['en', 'ms'], gpu=False)  # English and Malay
-        print("✅ EasyOCR ready!")
+        # Try to use GPU for faster OCR, fall back to CPU if not available
+        try:
+            ocr_reader = easyocr.Reader(['en', 'ms'], gpu=True)  # English and Malay with GPU
+            print("✅ EasyOCR ready (GPU enabled)!")
+        except Exception as e:
+            print(f"⚠️ GPU not available, using CPU: {e}")
+            ocr_reader = easyocr.Reader(['en', 'ms'], gpu=False)
+            print("✅ EasyOCR ready (CPU mode)!")
     return ocr_reader
 
 
@@ -84,21 +91,21 @@ def extract_ic_details(image_path):
             return {"error": "Failed to initialize OCR reader"}
 
         print("🔍 Running OCR on IC image...")
+
+        # Resize image if too large for faster OCR processing
+        img = cv2.imread(image_path)
+        if img is not None and max(img.shape[:2]) > 1200:
+            scale = 1200 / max(img.shape[:2])
+            img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            cv2.imwrite(image_path, img)
+            print(f"📏 Image resized to {img.shape[1]}x{img.shape[0]} for faster OCR")
+            del img
+            gc.collect()
+
         results = reader.readtext(image_path)
 
         # Combine all text
         full_text = ' '.join([result[1] for result in results])
-        print(f"📝 Extracted text (first 300 chars): {full_text[:300]}...")
-        print(f"📊 Total OCR results: {len(results)}")
-
-        # Print all detected text for debugging
-        print("📋 All detected text lines:")
-        for i, result in enumerate(results):
-            text = result[1]
-            bbox = result[0] if len(result) > 0 else None
-            y_pos = bbox[0][1] if bbox and len(
-                bbox) > 0 and len(bbox[0]) > 1 else 'N/A'
-            print(f"  [{i}] Y={y_pos:6.1f} | {text}")
 
         # Extract IC details using regex patterns
         extracted = {}
@@ -239,9 +246,8 @@ def extract_ic_details(image_path):
             best_name_text = best_name_text.strip()
 
             extracted['name'] = best_name_text
-            print(f"✅ Selected name: {best_name_text} (from {best_name[2]})")
         else:
-            print("⚠️ No valid name candidates found")
+            pass  # No name found, continue without it
 
         # Address extraction (if present)
         address_keywords = ['JALAN', 'JLN',
@@ -254,7 +260,6 @@ def extract_ic_details(image_path):
             extracted['address'] = ', '.join(
                 address_lines[:3])  # Take first 3 address lines
 
-        print(f"✅ Extracted details: {extracted}")
         return extracted
 
     except Exception as e:
@@ -290,7 +295,6 @@ def resize_image_if_needed(img_path_or_array, max_size=MAX_IMAGE_SIZE, min_size=
             new_height = int(height * scale)
         img = cv2.resize(img, (new_width, new_height),
                          interpolation=cv2.INTER_AREA)
-        print(f"DEBUG: Resized image to {new_width}x{new_height}")
 
     return img
 
@@ -298,11 +302,8 @@ def resize_image_if_needed(img_path_or_array, max_size=MAX_IMAGE_SIZE, min_size=
 def generate_embedding(img_input):
     """Generate face embedding with memory optimization"""
     try:
-        print("DEBUG: generate_embedding called")
-
         # If input is numpy array, save it temporarily for DeepFace
         if isinstance(img_input, np.ndarray):
-            print("DEBUG: Input is numpy array, saving to temp file...")
             temp_path = os.path.join(
                 UPLOAD_FOLDER, f"temp_embed_{int(time.time())}.jpg")
             # Convert RGB to BGR for OpenCV
@@ -311,29 +312,26 @@ def generate_embedding(img_input):
             else:
                 bgr_img = img_input
             cv2.imwrite(temp_path, bgr_img)
-            print(f"DEBUG: Saved temp image to {temp_path}")
             processed_img = temp_path
         else:
             # It's a file path string
             processed_img = resize_image_if_needed(img_input)
 
-        print(f"DEBUG: Calling DeepFace.represent with {MODEL_NAME}...")
+        print("🔍 Generating face embedding...")
         embedding_obj = DeepFace.represent(
             img_path=processed_img,
             model_name=MODEL_NAME,
             enforce_detection=False,
-            detector_backend='opencv'  # Use OpenCV for faster detection
+            detector_backend='opencv'
         )
-        print("DEBUG: DeepFace.represent completed")
 
         embedding = embedding_obj[0]["embedding"]
-        print(f"DEBUG: Extracted embedding, length: {len(embedding)}")
+        print(f"✅ Embedding generated (length: {len(embedding)})")
 
         # Clean up temp file if we created one
         if isinstance(img_input, np.ndarray) and os.path.exists(processed_img):
             try:
                 os.remove(processed_img)
-                print("DEBUG: Temp file removed")
             except:
                 pass
 
@@ -392,9 +390,7 @@ def upload_ic():
 
     try:
         # Extract IC details using OCR
-        print("🔍 Extracting IC details with OCR...")
         ocr_data = extract_ic_details(filepath)
-        print(f"📋 OCR Data: {ocr_data}")
 
         # Generate face embedding
         embedding = generate_embedding(filepath)
@@ -409,18 +405,22 @@ def upload_ic():
         cur.close()
         conn.close()
 
+        # Store embedding for response before cleanup
+        embedding_list = list(embedding) if embedding else None
+
         # Clean up file reference
         del embedding
         gc.collect()
 
         print("✅ New IC Registered!")
 
-        # Return JSON with CORS headers including OCR data
+        # Return JSON with CORS headers including OCR data and embedding
         response = jsonify({
             "status": "success",
             "message": "IC uploaded successfully",
             "redirect": url_for('verify_page'),
-            "ocr_data": ocr_data  # Include extracted data
+            "ocr_data": ocr_data,  # Include extracted data
+            "face_embedding": embedding_list  # Include face embedding for frontend storage
         })
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response
@@ -461,9 +461,7 @@ def extract_ic():
     file.save(filepath)
 
     try:
-        print("🔍 Running OCR extraction...")
         ocr_data = extract_ic_details(filepath)
-        print(f"📋 Extracted data: {ocr_data}")
 
         # Clean up temp file
         if os.path.exists(filepath):
@@ -548,13 +546,8 @@ def process_frame():
             return response, 400
 
         # Resize frame if too large to reduce memory usage
-        # But don't resize too small - keep at least 640px for better face detection
-        original_frame = frame.copy()
         if max(frame.shape[:2]) > MAX_IMAGE_SIZE:
             frame = resize_image_if_needed(frame)
-            print(
-                f"DEBUG: Resized frame from {original_frame.shape[1]}x{original_frame.shape[0]} to {frame.shape[1]}x{frame.shape[0]}")
-        del original_frame
 
         # Use local haarcascade file if available, otherwise use OpenCV's built-in
         cascade_path = os.path.join(os.path.dirname(
@@ -573,10 +566,6 @@ def process_frame():
             response.headers.add('Access-Control-Allow-Origin', '*')
             return response, 500
 
-        # Debug: Print frame dimensions
-        frame_height, frame_width = frame.shape[:2]
-        print(f"DEBUG: Frame size: {frame_width}x{frame_height}")
-
         # Use OpenCV Haar Cascade with VERY lenient parameters
         gray_img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -584,24 +573,19 @@ def process_frame():
         faces = []
 
         # Attempt 1: Very lenient
-        # 5% of smaller dimension
-        min_face_size_1 = max(15, min(frame_width, frame_height) // 20)
-        print(
-            f"DEBUG: Attempt 1 - minSize={min_face_size_1}x{min_face_size_1}")
+        min_face_size_1 = max(15, min(frame.shape[1], frame.shape[0]) // 20)
         faces = haar_cascade.detectMultiScale(
             gray_img,
             scaleFactor=1.05,
-            minNeighbors=1,   # Minimum possible
+            minNeighbors=1,
             minSize=(min_face_size_1, min_face_size_1),
             flags=cv2.CASCADE_SCALE_IMAGE
         )
 
         # Attempt 2: Even more lenient
         if len(faces) == 0:
-            # 3.3% of smaller dimension
-            min_face_size_2 = max(10, min(frame_width, frame_height) // 30)
-            print(
-                f"DEBUG: Attempt 2 - minSize={min_face_size_2}x{min_face_size_2}")
+            min_face_size_2 = max(
+                10, min(frame.shape[1], frame.shape[0]) // 30)
             faces = haar_cascade.detectMultiScale(
                 gray_img,
                 scaleFactor=1.03,
@@ -614,22 +598,15 @@ def process_frame():
         rgb_face = None
         try:
             if len(faces) == 0:
-                print("DEBUG: No face detected with cascade, using entire frame")
                 # Clean up gray_img if it exists
                 if 'gray_img' in locals():
-                    print("DEBUG: Cleaning up gray_img...")
                     del gray_img
                     gc.collect()
                 # Use entire frame - DeepFace will detect internally
-                print("DEBUG: Converting full frame to RGB...")
                 rgb_face = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                print(f"DEBUG: Full frame RGB shape: {rgb_face.shape}")
-                print("DEBUG: Full frame converted to RGB")
             else:
-                print(f"DEBUG: Faces detected: {len(faces)}")
                 largest_face = max(faces, key=lambda f: f[2] * f[3])
                 x, y, w, h = largest_face
-                print(f"DEBUG: Largest face at ({x}, {y}) size {w}x{h}")
 
                 # Add generous padding
                 padding = 50
@@ -638,29 +615,22 @@ def process_frame():
                 w = min(frame.shape[1] - x, w + padding * 2)
                 h = min(frame.shape[0] - y, h + padding * 2)
 
-                print("DEBUG: Extracting face crop...")
-                import sys
-                sys.stdout.flush()
-
-                # Save face crop to file immediately to avoid memory issues
-                face_crop_path = os.path.join(
-                    UPLOAD_FOLDER, f"face_crop_{int(time.time())}.jpg")
                 try:
                     # Validate coordinates first
                     if x < 0 or y < 0 or x+w > frame.shape[1] or y+h > frame.shape[0]:
                         raise ValueError(
                             f"Invalid crop coordinates: x={x}, y={y}, w={w}, h={h}, frame={frame.shape}")
 
-                    # Extract and save directly to avoid memory issues
+                    # Extract face crop and save to file for smoother processing
                     face_crop = frame[y:y+h, x:x+w]
-                    print(
-                        f"DEBUG: Face crop extracted, size: {w}x{h}, shape: {face_crop.shape}")
-                    sys.stdout.flush()
 
-                    # Save to file immediately
+                    # Save to file to avoid memory issues
+                    face_crop_path = os.path.join(
+                        UPLOAD_FOLDER, f"face_crop_{int(time.time())}.jpg")
                     cv2.imwrite(face_crop_path, face_crop)
-                    print(f"DEBUG: Face crop saved to {face_crop_path}")
-                    sys.stdout.flush()
+
+                    # Use file path for embedding generation
+                    rgb_face = face_crop_path
 
                     # Clean up immediately
                     del face_crop
@@ -668,17 +638,7 @@ def process_frame():
                         del gray_img
                     gc.collect()
 
-                    # Use file path for embedding generation instead of numpy array
-                    rgb_face = face_crop_path  # Pass file path instead of array
-                    print("DEBUG: Will use file path for embedding generation")
-                    sys.stdout.flush()
-
                 except Exception as crop_error:
-                    print(
-                        f"DEBUG: CRITICAL - Error extracting face crop: {crop_error}")
-                    import traceback
-                    traceback.print_exc()
-                    sys.stdout.flush()
                     if 'frame' in locals():
                         del frame
                     if 'gray_img' in locals():
@@ -688,15 +648,7 @@ def process_frame():
                         {"status": "error", "message": f"Error extracting face: {str(crop_error)}"})
                     response.headers.add('Access-Control-Allow-Origin', '*')
                     return response, 500
-
-                print("DEBUG: Cleaning up gray_img and face_crop...")
-                if 'gray_img' in locals():
-                    del gray_img
-                del face_crop
-                gc.collect()
-                print("DEBUG: Cleanup done")
         except Exception as face_process_error:
-            print(f"DEBUG: Error processing face: {face_process_error}")
             import traceback
             traceback.print_exc()
             if 'frame' in locals():
@@ -708,7 +660,6 @@ def process_frame():
             return response, 500
 
         if rgb_face is None:
-            print("DEBUG: ERROR - rgb_face is None!")
             del frame
             gc.collect()
             response = jsonify(
@@ -717,36 +668,24 @@ def process_frame():
             return response, 500
 
         # Clean up frame
-        print("DEBUG: Cleaning up frame...")
         try:
             if 'frame' in locals():
                 del frame
             gc.collect()
-            print("DEBUG: Frame cleanup done successfully")
-        except Exception as frame_cleanup_error:
-            print(
-                f"DEBUG: Warning during frame cleanup: {frame_cleanup_error}")
-            # Continue anyway
+        except:
+            pass
 
-        # Generate embedding (either from cropped face file path or full frame)
-        print("DEBUG: Starting embedding generation...")
+        # Generate embedding
         face_crop_file_path = rgb_face if isinstance(rgb_face, str) else None
-        print(
-            f"DEBUG: rgb_face type: {type(rgb_face)}, value: {face_crop_file_path if face_crop_file_path else 'numpy array'}")
         try:
             embedding = generate_embedding(rgb_face)
-            print(
-                f"DEBUG: Embedding generated successfully, length: {len(embedding)}")
         except Exception as embed_error:
-            print(f"DEBUG: Error generating embedding: {embed_error}")
             import traceback
             traceback.print_exc()
             # Clean up temp file on error
             if face_crop_file_path and os.path.exists(face_crop_file_path):
                 try:
                     os.remove(face_crop_file_path)
-                    print(
-                        f"DEBUG: Removed temp file on error: {face_crop_file_path}")
                 except:
                     pass
             if not isinstance(rgb_face, str):
@@ -757,55 +696,130 @@ def process_frame():
             response.headers.add('Access-Control-Allow-Origin', '*')
             return response, 500
 
-        # Clean up temp file if we created one
-        if face_crop_file_path and os.path.exists(face_crop_file_path):
+        # Clean up temp face crop file if we created one
+        if 'face_crop_file_path' in locals() and face_crop_file_path and os.path.exists(face_crop_file_path):
             try:
                 os.remove(face_crop_file_path)
-                print(
-                    f"DEBUG: Removed temp face crop file: {face_crop_file_path}")
-            except Exception as cleanup_error:
-                print(
-                    f"DEBUG: Warning - could not remove temp file: {cleanup_error}")
+            except:
+                pass
 
         # Clean up rgb_face if it's a numpy array
-        if not isinstance(rgb_face, str):
+        if 'rgb_face' in locals() and not isinstance(rgb_face, str) and rgb_face is not None:
             del rgb_face
         gc.collect()
 
-        print("DEBUG: Connecting to database...")
+        # Database query
+        row = None
+        conn = None
+        cur = None
         try:
+            print("🔍 Querying database for face match...")
             conn = get_db_connection()
             cur = conn.cursor()
-            print("DEBUG: Database connected, creating embedding string...")
-            string_rep = "[" + ",".join(str(x) for x in embedding) + "]"
-            print(f"DEBUG: Embedding string length: {len(string_rep)}")
 
-            print("DEBUG: Executing database query...")
-            cur.execute("""
-                SELECT picture, (embedding <-> %s) as distance 
-                FROM pictures 
-                ORDER BY embedding <-> %s ASC 
-                LIMIT 1;
-            """, (string_rep, string_rep))
+            # Check if table exists and has data first
+            print("📊 Checking pictures table...")
+            cur.execute("SELECT COUNT(*) FROM pictures;")
+            count = cur.fetchone()[0]
+            print(f"📊 Found {count} records in pictures table")
+
+            if count == 0:
+                print("⚠️ No records found in pictures table")
+                cur.close()
+                conn.close()
+                del embedding
+                gc.collect()
+                response = jsonify(
+                    {"status": "error", "message": "No ID record found. Please upload your IC first."})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                return response, 404
+
+            # Create embedding string representation
+            print("📝 Creating embedding string...")
+            string_rep = "[" + ",".join(str(x) for x in embedding) + "]"
+            print(
+                f"✅ Embedding string created (length: {len(string_rep)} chars)")
+
+            print("🔍 Executing similarity search...")
+            import time
+            start_time = time.time()
+
+            # Try the query - handle both vector and array formats
+            try:
+                # First try with explicit vector cast
+                cur.execute("""
+                    SELECT picture, (embedding <-> %s::vector) as distance 
+                    FROM pictures 
+                    ORDER BY embedding <-> %s::vector ASC 
+                    LIMIT 1;
+                """, (string_rep, string_rep))
+            except Exception as vector_error:
+                print(
+                    f"⚠️ Vector cast failed, trying without cast: {vector_error}")
+                # Fallback: try without explicit cast (PostgreSQL should infer it)
+                cur.execute("""
+                    SELECT picture, (embedding <-> %s) as distance 
+                    FROM pictures 
+                    ORDER BY embedding <-> %s ASC 
+                    LIMIT 1;
+                """, (string_rep, string_rep))
+
             row = cur.fetchone()
-            print(f"DEBUG: Database query completed, row: {row is not None}")
+            elapsed_time = time.time() - start_time
+            print(f"✅ Database query completed in {elapsed_time:.2f} seconds")
+
             cur.close()
             conn.close()
-            print("DEBUG: Database connection closed")
-        except Exception as db_error:
-            print(f"DEBUG: Database error: {db_error}")
+
+            # Clean up embedding and string_rep after successful query
+            del embedding, string_rep
+            gc.collect()
+        except psycopg2.Error as db_error:
+            print(f"❌ PostgreSQL error: {db_error}")
+            if hasattr(db_error, 'pgcode'):
+                print(f"   Error code: {db_error.pgcode}")
+            if hasattr(db_error, 'pgerror'):
+                print(f"   Error message: {db_error.pgerror}")
             import traceback
             traceback.print_exc()
-            del embedding
+            # Ensure database connection is closed
+            try:
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
+            except:
+                pass
+            if 'embedding' in locals():
+                del embedding
+            if 'string_rep' in locals():
+                del string_rep
             gc.collect()
             response = jsonify(
                 {"status": "error", "message": f"Database error: {str(db_error)}"})
             response.headers.add('Access-Control-Allow-Origin', '*')
             return response, 500
-
-        # Clean up embedding
-        del embedding, string_rep
-        gc.collect()
+        except Exception as db_error:
+            print(f"❌ Unexpected error: {type(db_error).__name__}: {db_error}")
+            import traceback
+            traceback.print_exc()
+            # Ensure database connection is closed
+            try:
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
+            except:
+                pass
+            if 'embedding' in locals():
+                del embedding
+            if 'string_rep' in locals():
+                del string_rep
+            gc.collect()
+            response = jsonify(
+                {"status": "error", "message": f"Unexpected error: {str(db_error)}"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 500
 
         if row:
             distance = row[1]
@@ -813,11 +827,15 @@ def process_frame():
             raw_score = ((max_score_dist - distance) / max_score_dist) * 100
             score = round(max(0, min(100, raw_score)))
 
-            print(f"DEBUG: Distance: {distance:.2f} | Score: {score}%")
+            print(
+                f"📊 Verification result: Score {score}% (threshold: {PASSING_THRESHOLD_PERCENTAGE}%)")
 
-            if distance < PASSING_THRESHOLD_DISTANCE:
+            # Use percentage threshold instead of distance
+            if score >= PASSING_THRESHOLD_PERCENTAGE:
+                print(f"✅ Face verified! Score: {score}%")
                 response = jsonify({
                     "status": "success",
+                    "success": True,
                     "score": score,
                     "message": "Identity Verified",
                     "redirect": url_for('success_page')
@@ -825,11 +843,18 @@ def process_frame():
                 response.headers.add('Access-Control-Allow-Origin', '*')
                 return response
             else:
-                response = jsonify(
-                    {"status": "fail", "score": score, "message": "Face mismatch"})
+                print(
+                    f"❌ Face mismatch. Score: {score}% (required: {PASSING_THRESHOLD_PERCENTAGE}%)")
+                response = jsonify({
+                    "status": "fail",
+                    "success": False,
+                    "score": score,
+                    "message": "Face mismatch"
+                })
                 response.headers.add('Access-Control-Allow-Origin', '*')
                 return response
         else:
+            print("⚠️ No ID record found in database")
             response = jsonify(
                 {"status": "error", "message": "No ID record found"})
             response.headers.add('Access-Control-Allow-Origin', '*')

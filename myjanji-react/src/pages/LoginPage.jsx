@@ -14,7 +14,8 @@ import {
   Loader2,
   AlertCircle,
   Wifi,
-  WifiOff
+  WifiOff,
+  ArrowLeft,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import faceAuthService from '../services/faceAuthService'
@@ -201,6 +202,15 @@ export default function LoginPage() {
           transition={{ delay: 0.1 }}
         >
           <Card className="max-w-md mx-auto" padding="lg">
+            {/* Back Button */}
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 text-body/60 hover:text-header mb-4 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="text-sm">Back to Home</span>
+            </button>
+
             {/* Title */}
             <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-secondary to-secondary-light bg-clip-text text-transparent">
               Sign In to MyJanji

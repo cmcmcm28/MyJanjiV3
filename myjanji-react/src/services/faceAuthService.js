@@ -25,7 +25,7 @@ export const faceAuthService = {
   async uploadIC(imageFile) {
     try {
       const formData = new FormData()
-      
+
       // If it's a base64 string, convert to blob
       if (typeof imageFile === 'string' && imageFile.startsWith('data:')) {
         const response = await fetch(imageFile)
@@ -47,6 +47,7 @@ export const faceAuthService = {
         success: data.status === 'success',
         message: data.message || (data.status === 'success' ? 'IC uploaded successfully' : 'Upload failed'),
         ocrData: data.ocr_data || null, // Include OCR extracted data
+        faceEmbedding: data.face_embedding || null, // Include face embedding
         data,
       }
     } catch (error) {
@@ -64,7 +65,7 @@ export const faceAuthService = {
     try {
       console.log('🔍 extractICDetails called with:', typeof imageFile)
       const formData = new FormData()
-      
+
       // If it's a base64 string, convert to blob
       if (typeof imageFile === 'string' && imageFile.startsWith('data:')) {
         const response = await fetch(imageFile)
@@ -103,7 +104,7 @@ export const faceAuthService = {
 
       const data = await response.json()
       console.log('📥 Received OCR response:', data)
-      
+
       return {
         success: data.status === 'success',
         data: data.data || null,
@@ -136,7 +137,7 @@ export const faceAuthService = {
       })
 
       const data = await response.json()
-      
+
       return {
         success: data.status === 'success',
         status: data.status,
