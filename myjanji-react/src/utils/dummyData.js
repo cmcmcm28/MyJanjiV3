@@ -211,76 +211,77 @@ export const initialContracts = [
 ];
 
 // Contract template categories
+// COMMENTED OUT ALL TO TEST SUPABASE FETCH - if categories still show, they're from Supabase!
 export const contractCategories = [
-  {
-    id: 'items_assets',
-    name: 'Items & Assets',
-    description: 'Borrowing physical items or vehicles',
-    icon: 'Package',
-    color: 'from-blue-500 to-cyan-500',
-    templates: [
-      {
-        id: 'VEHICLE_USE',
-        name: 'Vehicle Borrowing',
-        description: 'Lend or borrow a vehicle temporarily',
-        icon: 'Car',
-        fields: ['model', 'plate', 'startDate', 'endDate', 'fuel'],
-      },
-      {
-        id: 'ITEM_BORROW',
-        name: 'Item Borrowing',
-        description: 'Lend or borrow personal items',
-        icon: 'Package',
-        fields: ['item', 'condition', 'returnDate', 'value'],
-      },
-    ],
-  },
-  {
-    id: 'money_finance',
-    name: 'Money & Finance',
-    description: 'Loans and shared expenses',
-    icon: 'Banknote',
-    color: 'from-green-500 to-emerald-500',
-    templates: [
-      {
-        id: 'BILL_SPLIT',
-        name: 'Bill Split',
-        description: 'Split shared expenses with others',
-        icon: 'Receipt',
-        fields: ['description', 'total', 'share', 'date'],
-      },
-      {
-        id: 'FRIENDLY_LOAN',
-        name: 'Friendly Loan',
-        description: 'Personal loan between friends/family',
-        icon: 'Banknote',
-        fields: ['amount', 'purpose', 'date'],
-      },
-    ],
-  },
-  {
-    id: 'service_gig',
-    name: 'Service & Gig Work',
-    description: 'Freelance jobs and sales',
-    icon: 'Briefcase',
-    color: 'from-purple-500 to-pink-500',
-    templates: [
-      {
-        id: 'FREELANCE_JOB',
-        name: 'Freelance Job',
-        description: 'Service or gig work agreement',
-        icon: 'Briefcase',
-        fields: ['task', 'deadline', 'price', 'deposit'],
-      },
-      {
-        id: 'SALE_DEPOSIT',
-        name: 'Sales & Deposit',
-        description: 'Sale with deposit agreement',
-        icon: 'ShoppingBag',
-        fields: ['item', 'price', 'deposit', 'dueDate'],
-      },
-    ],
-  },
+  // {
+  //   id: 'items_assets',
+  //   name: 'Items & Assets',
+  //   description: 'Borrowing physical items or vehicles',
+  //   icon: 'Package',
+  //   color: 'from-blue-500 to-cyan-500',
+  //   templates: [
+  //     {
+  //       id: 'VEHICLE_USE',
+  //       name: 'Vehicle Borrowing',
+  //       description: 'Lend or borrow a vehicle temporarily',
+  //       icon: 'Car',
+  //       fields: ['model', 'plate', 'startDate', 'endDate', 'fuel'],
+  //     },
+  //     {
+  //       id: 'ITEM_BORROW',
+  //       name: 'Item Borrowing',
+  //       description: 'Lend or borrow personal items',
+  //       icon: 'Package',
+  //       fields: ['item', 'condition', 'returnDate', 'value'],
+  //     },
+  //   ],
+  // },
+  // {
+  //   id: 'money_finance',
+  //   name: 'Money & Finance',
+  //   description: 'Loans and shared expenses',
+  //   icon: 'Banknote',
+  //   color: 'from-green-500 to-emerald-500',
+  //   templates: [
+  //     {
+  //       id: 'BILL_SPLIT',
+  //       name: 'Bill Split',
+  //       description: 'Split shared expenses with others',
+  //       icon: 'Receipt',
+  //       fields: ['description', 'total', 'share', 'date'],
+  //     },
+  //     {
+  //       id: 'FRIENDLY_LOAN',
+  //       name: 'Friendly Loan',
+  //       description: 'Personal loan between friends/family',
+  //       icon: 'Banknote',
+  //       fields: ['amount', 'purpose', 'date'],
+  //     },
+  //   ],
+  // },
+  // {
+  //   id: 'service_gig',
+  //   name: 'Service & Gig Work',
+  //   description: 'Freelance jobs and sales',
+  //   icon: 'Briefcase',
+  //   color: 'from-purple-500 to-pink-500',
+  //   templates: [
+  //     {
+  //       id: 'FREELANCE_JOB',
+  //       name: 'Freelance Job',
+  //       description: 'Service or gig work agreement',
+  //       icon: 'Briefcase',
+  //       fields: ['task', 'deadline', 'price', 'deposit'],
+  //     },
+  //     {
+  //       id: 'SALE_DEPOSIT',
+  //       name: 'Sales & Deposit',
+  //       description: 'Sale with deposit agreement',
+  //       icon: 'ShoppingBag',
+  //       fields: ['item', 'price', 'deposit', 'dueDate'],
+  //     },
+  //   ],
+  // },
 ];
 
 // Flat list of all templates for backward compatibility

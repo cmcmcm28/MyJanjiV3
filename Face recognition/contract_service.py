@@ -3,6 +3,7 @@
 
 import os
 import re
+import json
 import tempfile
 from docx import Document
 from docx2pdf import convert
@@ -17,9 +18,19 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # Use service key for storage access
 
 # Storage bucket names
-TEMPLATE_BUCKET = "contract-pdf"
-TEMPLATE_FOLDER = "templates"
+TEMPLATE_BUCKET = "contract_templates"   # Bucket for .docx templates
+PDF_BUCKET = "contract_pdf"              # Bucket for generated PDFs
 GENERATED_FOLDER = "generated"
+
+# Template ID to file path mapping (loaded from config.json or hardcoded fallback)
+TEMPLATE_PATHS = {
+    "VEHICLE_USE": "Items & Assets/Vehicle Borrowing.docx",
+    "ITEM_BORROW": "Items & Assets/Item Borrowing.docx",
+    "BILL_SPLIT": "Money & Finance/Bill Split.docx",
+    "FRIENDLY_LOAN": "Money & Finance/Friendly Loan.docx",
+    "FREELANCE_JOB": "Service & Gig Work/Freelance Job.docx",
+    "SALE_DEPOSIT": "Service & Gig Work/Sales & Deposit.docx",
+}
 
 # Local temp folder
 TEMP_FOLDER = "temp_contracts"
@@ -33,23 +44,42 @@ def get_supabase_client() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
+def get_template_path(template_id: str) -> str:
+    """
+    Get the storage path for a template ID.
+    Uses TEMPLATE_PATHS mapping or treats input as direct path.
+    """
+    # If it's a known template ID, map it
+    if template_id in TEMPLATE_PATHS:
+        return TEMPLATE_PATHS[template_id]
+    
+    # If it already looks like a path (contains / or .docx), use as-is
+    if '/' in template_id or template_id.endswith('.docx'):
+        return template_id
+    
+    # Default: assume it's in root with .docx extension
+    return f"{template_id}.docx"
+
+
 def download_template(template_name: str) -> str:
     """
     Download .docx template from Supabase Storage.
+    Accepts template ID (e.g., 'ITEM_BORROW') or full path.
     Returns local file path.
     """
     supabase = get_supabase_client()
     
-    # Build storage path
-    storage_path = f"{TEMPLATE_FOLDER}/{template_name}"
+    # Resolve template ID to storage path
+    storage_path = get_template_path(template_name)
     
     print(f"📥 Downloading template: {storage_path}")
     
     # Download file
     response = supabase.storage.from_(TEMPLATE_BUCKET).download(storage_path)
     
-    # Save to local temp file
-    local_path = os.path.join(TEMP_FOLDER, template_name)
+    # Save to local temp file (use just the filename, not the full path)
+    filename = os.path.basename(storage_path)
+    local_path = os.path.join(TEMP_FOLDER, filename)
     with open(local_path, 'wb') as f:
         f.write(response)
     
@@ -109,36 +139,47 @@ def convert_to_pdf(docx_path: str) -> str:
         convert(docx_path, pdf_path)
         print(f"✅ PDF created: {pdf_path}")
         return pdf_path
+    except AttributeError as e:
+        # Known issue: Word.Application.Quit fails but PDF is created successfully
+        if "Quit" in str(e) and os.path.exists(pdf_path):
+            print(f"⚠️ Word quit error ignored, PDF created: {pdf_path}")
+            return pdf_path
+        print(f"❌ PDF conversion failed: {e}")
+        raise
     except Exception as e:
+        # Check if PDF was created despite error
+        if os.path.exists(pdf_path):
+            print(f"⚠️ Error occurred but PDF exists: {pdf_path}")
+            return pdf_path
         print(f"❌ PDF conversion failed: {e}")
         raise
 
 
 def upload_pdf(pdf_path: str, contract_id: str) -> str:
     """
-    Upload generated PDF to Supabase Storage.
+    Upload generated PDF to Supabase Storage (contract_pdf bucket).
     Returns public URL.
     """
     supabase = get_supabase_client()
     
-    # Storage path
+    # Storage path in the PDF bucket
     storage_path = f"{GENERATED_FOLDER}/{contract_id}.pdf"
     
-    print(f"📤 Uploading PDF to: {storage_path}")
+    print(f"📤 Uploading PDF to bucket '{PDF_BUCKET}': {storage_path}")
     
     # Read PDF file
     with open(pdf_path, 'rb') as f:
         pdf_data = f.read()
     
-    # Upload to Supabase
-    response = supabase.storage.from_(TEMPLATE_BUCKET).upload(
+    # Upload to Supabase PDF bucket
+    response = supabase.storage.from_(PDF_BUCKET).upload(
         storage_path,
         pdf_data,
         file_options={"content-type": "application/pdf"}
     )
     
     # Get public URL
-    public_url = supabase.storage.from_(TEMPLATE_BUCKET).get_public_url(storage_path)
+    public_url = supabase.storage.from_(PDF_BUCKET).get_public_url(storage_path)
     
     print(f"✅ PDF uploaded: {public_url}")
     return public_url

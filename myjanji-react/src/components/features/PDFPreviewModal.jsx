@@ -4,6 +4,9 @@ import { X, Loader2, FileText, Download, ZoomIn, ZoomOut, AlertCircle } from 'lu
 import Button from '../ui/Button'
 import pdfService from '../../services/pdfService'
 
+// Backend API URL for contract preview
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+
 export default function PDFPreviewModal({
   isOpen,
   onClose,
@@ -14,6 +17,7 @@ export default function PDFPreviewModal({
   formData,
   title = 'Contract Preview',
   allowDownload = false,
+  useBackend = true, // NEW: Use Python backend for preview by default
 }) {
   const [pdfUrl, setPdfUrl] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -39,7 +43,11 @@ export default function PDFPreviewModal({
     try {
       let result
 
-      if (contract) {
+      // Use Python backend for dynamic template preview
+      if (useBackend && templateType) {
+        console.log('📄 Generating preview from backend for template:', templateType)
+        result = await generateBackendPreview()
+      } else if (contract) {
         result = await pdfService.generateContractPDF(contract, creator, acceptee, {
           templateType,
           formData,
@@ -63,6 +71,104 @@ export default function PDFPreviewModal({
       setError('Failed to generate PDF preview. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // NEW: Generate preview using Python backend (fetches from Supabase templates)
+  const generateBackendPreview = async () => {
+    try {
+      // Build placeholders from formData
+      const placeholders = buildPlaceholders(formData, creator, acceptee)
+      
+      console.log('Sending to backend:', { template_name: templateType, placeholders })
+
+      const response = await fetch(`${BACKEND_URL}/preview_contract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          template_name: templateType,
+          placeholders: placeholders,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Backend error: ${response.status}`)
+      }
+
+      // Get PDF blob and create URL
+      const pdfBlob = await response.blob()
+      const url = URL.createObjectURL(pdfBlob)
+      
+      return { success: true, url }
+    } catch (err) {
+      console.error('Backend preview error:', err)
+      // Fallback to local generation if backend fails
+      console.log('⚠️ Backend failed, falling back to local PDF generation')
+      return await pdfService.generateTemplatedPDF(templateType, formData, {
+        creator,
+        acceptee,
+        includeSignatures: false,
+      })
+    }
+  }
+
+  // Build placeholders object from form data
+  const buildPlaceholders = (formData, creator, acceptee) => {
+    return {
+      // Parties
+      CREATOR_NAME: creator?.name || formData?.creatorName || '',
+      CREATOR_IC: creator?.ic || formData?.creatorIc || '',
+      ACCEPTEE_NAME: acceptee?.name || formData?.accepteeName || '',
+      ACCEPTEE_IC: acceptee?.ic || formData?.accepteeIc || '',
+      
+      // Dates
+      START_DATE: formatDate(formData?.startDate),
+      END_DATE: formatDate(formData?.endDate || formData?.returnDate || formData?.dueDate),
+      RETURN_DATE: formatDate(formData?.returnDate || formData?.dueDate),
+      DUE_DATE: formatDate(formData?.dueDate),
+      CONTRACT_DATE: formatDate(new Date()),
+      
+      // Items/Assets
+      ITEM_NAME: formData?.item || formData?.itemName || formData?.name || '',
+      ITEM_DESCRIPTION: formData?.description || formData?.itemDescription || '',
+      ITEM_CONDITION: formData?.condition || formData?.itemCondition || 'Good',
+      ITEM_VALUE: formData?.value || formData?.estimatedValue || '',
+      
+      // Money
+      AMOUNT: formData?.amount || formData?.loanAmount || '',
+      INTEREST_RATE: formData?.interestRate || '0',
+      PAYMENT_TERMS: formData?.paymentTerms || '',
+      
+      // Vehicle specific
+      VEHICLE_MODEL: formData?.vehicleModel || formData?.model || '',
+      VEHICLE_PLATE: formData?.vehiclePlate || formData?.plateNumber || '',
+      VEHICLE_COLOR: formData?.vehicleColor || formData?.color || '',
+      
+      // Additional
+      TERMS: formData?.terms || formData?.additionalTerms || '',
+      NOTES: formData?.notes || '',
+      LOCATION: formData?.location || '',
+      
+      // Spread any additional form data
+      ...formData,
+    }
+  }
+
+  // Helper to format dates
+  const formatDate = (date) => {
+    if (!date) return ''
+    try {
+      const d = new Date(date)
+      return d.toLocaleDateString('en-MY', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric'
+      })
+    } catch {
+      return String(date)
     }
   }
 

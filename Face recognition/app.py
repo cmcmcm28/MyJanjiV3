@@ -7,7 +7,7 @@ import time
 import gc
 import numpy as np
 import cv2
-from flask import Flask, render_template, request, jsonify, url_for
+from flask import Flask, render_template, request, jsonify, url_for, make_response
 from flask_cors import CORS
 
 # Import from our modules
@@ -411,6 +411,66 @@ def generate_contract():
 
     except Exception as e:
         print(f"Error generating contract: {e}")
+        import traceback
+        traceback.print_exc()
+        response = jsonify({"status": "error", "message": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+@app.route('/preview_contract', methods=['POST', 'OPTIONS'])
+def preview_contract():
+    """
+    Generate PDF preview from template (returns PDF blob, doesn't upload).
+    Expects: template_name, placeholders (dict)
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            return response
+
+        data = request.json
+        if not data:
+            response = jsonify({"status": "error", "message": "No data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        template_name = data.get('template_name')
+        placeholders = data.get('placeholders', {})
+
+        if not template_name:
+            response = jsonify({"status": "error", "message": "template_name is required"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        print(f"👁️ Previewing contract: {template_name}")
+        
+        # Download and fill template
+        doc_path = contract_service.download_template(template_name)
+        filled_path = contract_service.fill_template(doc_path, placeholders)
+        
+        # Convert to PDF
+        pdf_path = contract_service.convert_to_pdf(filled_path)
+        
+        # Read PDF and return as response
+        with open(pdf_path, 'rb') as f:
+            pdf_data = f.read()
+        
+        # Cleanup temp files
+        contract_service.cleanup_temp_files([doc_path, filled_path, pdf_path])
+        
+        # Return PDF as blob
+        response = make_response(pdf_data)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = 'inline; filename=preview.pdf'
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        print(f"Error previewing contract: {e}")
         import traceback
         traceback.print_exc()
         response = jsonify({"status": "error", "message": str(e)})

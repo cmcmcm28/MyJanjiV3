@@ -27,7 +27,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContracts } from '../context/ContractContext'
-import { users, contractCategories } from '../utils/dummyData'
+import { users, contractCategories as fallbackCategories } from '../utils/dummyData'
+import { templateService } from '../services/supabase/templateService'
 import Header from '../components/layout/Header'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
@@ -67,6 +68,10 @@ export default function CreateContractPage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
+  
+  // Dynamic categories from Supabase
+  const [contractCategories, setContractCategories] = useState(fallbackCategories)
+  const [loadingCategories, setLoadingCategories] = useState(true)
   const [formData, setFormData] = useState({
     name: '',
     topic: '',
@@ -181,6 +186,29 @@ export default function CreateContractPage() {
       setScanResult({ success: false, message: 'No face detected' })
     }
   }, [isScanning])
+
+  // Fetch categories from Supabase on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoadingCategories(true)
+      try {
+        const { data, error } = await templateService.getCategories()
+        if (data && !error) {
+          setContractCategories(data)
+          console.log('✅ Loaded categories from Supabase:', data.length)
+        } else {
+          console.warn('⚠️ Using fallback categories:', error?.message)
+          setContractCategories(fallbackCategories)
+        }
+      } catch (err) {
+        console.error('Error fetching categories:', err)
+        setContractCategories(fallbackCategories)
+      } finally {
+        setLoadingCategories(false)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   // Start scanning interval for face verification
   useEffect(() => {
@@ -299,6 +327,12 @@ export default function CreateContractPage() {
       <h2 className="text-xl font-bold text-header mb-2">Choose a Category</h2>
       <p className="text-body/60 mb-6">Select the type of agreement you want to create</p>
 
+      {loadingCategories ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+          <p className="text-body/60">Loading contract templates...</p>
+        </div>
+      ) : (
       <div className="space-y-4">
         {contractCategories.map((category) => {
           const CategoryIcon = iconMap[category.icon] || Package
@@ -329,7 +363,7 @@ export default function CreateContractPage() {
                 </div>
               </div>
               <div className="bg-white p-3 border-x border-b border-gray-100">
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {category.templates.map((t) => {
                     const TIcon = iconMap[t.icon] || FileText
                     return (
@@ -345,6 +379,7 @@ export default function CreateContractPage() {
           )
         })}
       </div>
+      )}
     </motion.div>
   )
 
