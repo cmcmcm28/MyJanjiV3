@@ -14,6 +14,7 @@ from flask_cors import CORS
 from config import UPLOAD_FOLDER, PASSING_THRESHOLD_DISTANCE, PASSING_THRESHOLD_PERCENTAGE
 import ocr_service
 import face_service
+import contract_service
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -349,6 +350,69 @@ def verify_login():
         import traceback
         traceback.print_exc()
         gc.collect()
+        response = jsonify({"status": "error", "message": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+@app.route('/generate_contract', methods=['POST', 'OPTIONS'])
+def generate_contract():
+    """
+    Generate PDF contract from template.
+    Expects: template_name, placeholders (dict), contract_id
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            return response
+
+        data = request.json
+        if not data:
+            response = jsonify({"status": "error", "message": "No data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        template_name = data.get('template_name')
+        placeholders = data.get('placeholders', {})
+        contract_id = data.get('contract_id')
+
+        if not template_name:
+            response = jsonify({"status": "error", "message": "template_name is required"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        if not contract_id:
+            response = jsonify({"status": "error", "message": "contract_id is required"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        print(f"📄 Generating contract: {template_name} for {contract_id}")
+        result = contract_service.generate_contract(template_name, placeholders, contract_id)
+
+        if result['success']:
+            response = jsonify({
+                "status": "success",
+                "pdf_url": result['pdf_url'],
+                "contract_id": result['contract_id']
+            })
+        else:
+            response = jsonify({
+                "status": "error",
+                "message": result.get('error', 'Contract generation failed')
+            })
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 500
+
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        print(f"Error generating contract: {e}")
+        import traceback
+        traceback.print_exc()
         response = jsonify({"status": "error", "message": str(e)})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
