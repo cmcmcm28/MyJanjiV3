@@ -36,12 +36,29 @@ def clear_temp_embedding():
 
 def compare_embeddings(embedding1, embedding2):
     """Compare two embeddings and return (is_match, score, distance)"""
+    import json
+    
     if embedding1 is None or embedding2 is None:
         return False, 0, float('inf')
     
+    # Handle string embeddings (from Supabase JSON)
+    if isinstance(embedding1, str):
+        try:
+            embedding1 = json.loads(embedding1)
+        except json.JSONDecodeError:
+            print(f"⚠️ Failed to parse embedding1 as JSON")
+            return False, 0, float('inf')
+    
+    if isinstance(embedding2, str):
+        try:
+            embedding2 = json.loads(embedding2)
+        except json.JSONDecodeError:
+            print(f"⚠️ Failed to parse embedding2 as JSON")
+            return False, 0, float('inf')
+    
     # Calculate Euclidean distance
-    arr1 = np.array(embedding1)
-    arr2 = np.array(embedding2)
+    arr1 = np.array(embedding1, dtype=np.float64)
+    arr2 = np.array(embedding2, dtype=np.float64)
     distance = np.linalg.norm(arr1 - arr2)
     
     # Calculate score (same formula as before)

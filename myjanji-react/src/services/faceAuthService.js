@@ -157,6 +157,46 @@ export const faceAuthService = {
     }
   },
 
+  // Verify face for login using stored embedding from Supabase
+  async verifyLogin(imageData, storedEmbedding) {
+    try {
+      let base64Image = imageData
+      if (imageData.includes(',')) {
+        base64Image = imageData.split(',')[1]
+      }
+
+      const response = await fetch(`${API_BASE_URL}/verify_login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: base64Image,
+          face_embedding: storedEmbedding,
+        }),
+      })
+
+      const data = await response.json()
+
+      return {
+        success: data.status === 'success',
+        status: data.status,
+        score: data.score,
+        message: data.message,
+        noFace: data.message === 'No face detected',
+        data,
+      }
+    } catch (error) {
+      console.error('Login verification error:', error)
+      return {
+        success: false,
+        status: 'error',
+        message: 'Failed to verify face. Check server connection.',
+        error: error.message,
+      }
+    }
+  },
+
   // Legacy methods for compatibility
   async registerFace(userId, imageData) {
     return this.uploadIC(imageData)

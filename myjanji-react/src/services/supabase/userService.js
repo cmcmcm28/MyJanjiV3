@@ -59,6 +59,24 @@ export const userService = {
     }
   },
 
+  // Get user by NFC chip ID (for login)
+  async getUserByNfcChipId(nfcChipId) {
+    if (!isSupabaseConfigured()) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('nfc_chip_id', nfcChipId)
+        .single()
+      return { data, error }
+    } catch (error) {
+      console.error('Get user by NFC chip ID error:', error)
+      return { data: null, error }
+    }
+  },
+
   // Get user by IC number (if you have ic_hash field)
   async getUserByIC(icHash) {
     if (!isSupabaseConfigured()) {

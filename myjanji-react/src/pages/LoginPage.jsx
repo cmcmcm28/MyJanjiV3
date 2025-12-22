@@ -3,14 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Webcam from 'react-webcam'
 import {
-  CreditCard,
-  User,
+  Smartphone,
   ScanFace,
   CheckCircle,
-  Upload,
-  ChevronRight,
-  Camera,
-  ImageIcon,
   Loader2,
   AlertCircle,
   Wifi,
@@ -19,11 +14,12 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import faceAuthService from '../services/faceAuthService'
+import { userService } from '../services/supabase/userService'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 
 const steps = [
-  { id: 0, label: 'Upload IC', icon: CreditCard },
+  { id: 0, label: 'Tap NFC', icon: Smartphone },
   { id: 1, label: 'Face Scan', icon: ScanFace },
   { id: 2, label: 'Verified', icon: CheckCircle },
 ]
@@ -32,13 +28,13 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const { login, availableUsers } = useAuth()
   const webcamRef = useRef(null)
-  const fileInputRef = useRef(null)
+  const nfcInputRef = useRef(null)
 
   const [currentStep, setCurrentStep] = useState(0)
-  const [selectedUser, setSelectedUser] = useState(null)
-  const [icPreview, setIcPreview] = useState(null)
-  const [icFile, setIcFile] = useState(null)
-  const [isUploading, setIsUploading] = useState(false)
+  const [nfcChipId, setNfcChipId] = useState('')
+  const [userData, setUserData] = useState(null)
+  const [storedEmbedding, setStoredEmbedding] = useState(null)
+  const [isLookingUp, setIsLookingUp] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [scanResult, setScanResult] = useState(null)
   const [scanScore, setScanScore] = useState(null)
@@ -54,88 +50,109 @@ export default function LoginPage() {
     checkBackend()
   }, [])
 
-  // Handle IC file selection
-  const handleICSelect = (event) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setIcFile(file)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setIcPreview(e.target.result)
-      }
-      reader.readAsDataURL(file)
-      setErrorMessage(null)
+  // Auto-focus NFC input when on step 0
+  useEffect(() => {
+    if (currentStep === 0 && nfcInputRef.current) {
+      nfcInputRef.current.focus()
     }
-  }
+  }, [currentStep])
 
-  // Upload IC to backend
-  const handleICUpload = async () => {
-    if (!icFile && !icPreview) return
+  // Handle NFC chip ID lookup
+  const handleNfcLookup = async () => {
+    if (!nfcChipId.trim()) {
+      setErrorMessage('Please tap your NFC card')
+      return
+    }
 
-    setIsUploading(true)
+    setIsLookingUp(true)
     setErrorMessage(null)
 
     try {
-      const result = await faceAuthService.uploadIC(icFile || icPreview)
+      const searchValue = nfcChipId.trim()
+      console.log('🔍 Searching for NFC chip ID:', searchValue)
+      console.log('🔍 Value length:', searchValue.length)
+      console.log('🔍 Value bytes:', [...searchValue].map(c => c.charCodeAt(0)))
 
-      if (result.success) {
-        setCurrentStep(1) // Move to face scan step
-      } else {
-        setErrorMessage(result.message)
+      const { data, error } = await userService.getUserByNfcChipId(searchValue)
+
+      console.log('📦 Supabase response - data:', data)
+      console.log('📦 Supabase response - error:', error)
+
+      if (error || !data) {
+        console.error('❌ User not found or error:', error)
+        setErrorMessage('User not found. Please register first.')
+        setIsLookingUp(false)
+        return
       }
+
+      // Store user data and embedding
+      setUserData(data)
+      setStoredEmbedding(data.face_embedding)
+
+      console.log('✅ User found:', data.name)
+
+      // Move to face scan step
+      setCurrentStep(1)
     } catch (error) {
-      setErrorMessage('Failed to upload IC. Please try again.')
+      console.error('❌ Lookup error:', error)
+      setErrorMessage('Failed to lookup user. Please try again.')
     } finally {
-      setIsUploading(false)
+      setIsLookingUp(false)
     }
   }
 
-  // Continuous face scanning
+  // Handle NFC input keydown (for USB readers that send Enter)
+  const handleNfcKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleNfcLookup()
+    }
+  }
+
+  // Continuous face scanning for login
   const scanFace = useCallback(async () => {
-    if (!webcamRef.current || !isScanning) return
+    if (!webcamRef.current || !isScanning || !storedEmbedding) return
 
     const imageSrc = webcamRef.current.getScreenshot()
     if (!imageSrc) return
 
-    const result = await faceAuthService.verifyFrame(imageSrc)
+    // Use verifyLogin with stored embedding
+    const result = await faceAuthService.verifyLogin(imageSrc, storedEmbedding)
+
+    if (result.score !== undefined && result.score !== null) {
+      setScanScore(result.score)
+    }
 
     if (result.success) {
       // Face verified!
       setIsScanning(false)
       setScanResult('success')
-      setScanScore(result.score)
 
-      // Select first available user for demo (in production, this would be determined by the face match)
-      const matchedUser = availableUsers[0]
-      setSelectedUser(matchedUser)
-      login(matchedUser.id)
+      // Login the user
+      login(userData.user_id)
 
       // Move to verified step after brief delay
       setTimeout(() => {
         setCurrentStep(2)
-        // Navigate to dashboard after showing success
         setTimeout(() => {
           navigate('/dashboard')
         }, 1500)
       }, 500)
     } else if (result.status === 'fail') {
-      // Face detected but doesn't match
       setScanResult('mismatch')
-      setScanScore(result.score)
     } else if (result.noFace) {
-      // No face detected, keep scanning
       setScanResult('no_face')
+      setScanScore(null)
     } else {
-      // Error
-      setScanResult('error')
+      setScanResult('scanning')
     }
-  }, [isScanning, availableUsers, login, navigate])
+  }, [isScanning, storedEmbedding, userData, login, navigate])
 
   // Start scanning interval
   useEffect(() => {
     let interval
     if (isScanning && currentStep === 1) {
-      interval = setInterval(scanFace, 1000) // Scan every second
+      interval = setInterval(scanFace, 1000)
     }
     return () => clearInterval(interval)
   }, [isScanning, currentStep, scanFace])
@@ -144,7 +161,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (currentStep === 1) {
       setIsScanning(true)
-      setScanResult(null)
+      setScanResult('scanning')
       setScanScore(null)
     } else {
       setIsScanning(false)
@@ -153,8 +170,6 @@ export default function LoginPage() {
 
   // Demo quick login (bypasses face recognition)
   const handleDemoLogin = (user) => {
-    setSelectedUser(user)
-    setIcPreview(user.avatar)
     login(user.id)
     setCurrentStep(2)
     setTimeout(() => {
@@ -255,7 +270,7 @@ export default function LoginPage() {
 
             {/* Step Content */}
             <AnimatePresence mode="wait">
-              {/* Step 0: Upload IC */}
+              {/* Step 0: Tap NFC */}
               {currentStep === 0 && (
                 <motion.div
                   key="step0"
@@ -264,10 +279,10 @@ export default function LoginPage() {
                   exit={{ opacity: 0, x: -20 }}
                   className="text-center"
                 >
-                  <CreditCard className="h-16 w-16 text-primary mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-header mb-2">Upload Your IC Photo</h3>
+                  <Smartphone className="h-16 w-16 text-primary mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-header mb-2">Tap Your ID Card</h3>
                   <p className="text-body/60 text-sm mb-6">
-                    Take a photo of your MyKad or select from gallery for identity verification
+                    Place your registered MyKad on the NFC reader to identify yourself
                   </p>
 
                   {/* Error Message */}
@@ -278,81 +293,39 @@ export default function LoginPage() {
                     </div>
                   )}
 
-                  {/* IC Preview or Upload Zone */}
-                  {icPreview ? (
-                    <div className="mb-6">
-                      <div className="rounded-xl overflow-hidden border-2 border-primary/20 mb-3">
-                        <img src={icPreview} alt="IC Preview" className="w-full h-48 object-contain bg-gray-50" />
-                      </div>
-                      <button
-                        onClick={() => {
-                          setIcPreview(null)
-                          setIcFile(null)
-                        }}
-                        className="text-sm text-body/50 hover:text-primary"
-                      >
-                        Choose different photo
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mb-6">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleICSelect}
-                        className="hidden"
-                      />
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <button
-                          onClick={() => {
-                            fileInputRef.current.setAttribute('capture', 'environment')
-                            fileInputRef.current.click()
-                          }}
-                          className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-gray-300 hover:border-primary/50 transition-colors bg-gray-50"
-                        >
-                          <Camera className="h-8 w-8 text-primary" />
-                          <span className="text-sm font-medium text-header">Take Photo</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            fileInputRef.current.removeAttribute('capture')
-                            fileInputRef.current.click()
-                          }}
-                          className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-gray-300 hover:border-primary/50 transition-colors bg-gray-50"
-                        >
-                          <ImageIcon className="h-8 w-8 text-secondary" />
-                          <span className="text-sm font-medium text-header">Gallery</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {/* NFC Input */}
+                  <div className="mb-6">
+                    <input
+                      ref={nfcInputRef}
+                      type="password"
+                      value={nfcChipId}
+                      onChange={(e) => setNfcChipId(e.target.value)}
+                      onKeyDown={handleNfcKeyDown}
+                      onBlur={() => nfcInputRef.current?.focus()}
+                      placeholder="Waiting for NFC card..."
+                      className="w-full p-4 text-center text-lg border-2 border-primary/30 rounded-xl focus:border-primary focus:outline-none"
+                      autoFocus
+                    />
+                    {nfcChipId && (
+                      <p className="text-sm text-green-600 mt-2">
+                        ✓ Card detected! Click "Find My Account" to continue.
+                      </p>
+                    )}
+                  </div>
 
-                  {/* Upload Button */}
-                  {icPreview && (
-                    <Button
-                      fullWidth
-                      onClick={handleICUpload}
-                      disabled={isUploading || !backendOnline}
-                      loading={isUploading}
-                      icon={isUploading ? Loader2 : Upload}
-                    >
-                      {isUploading ? 'Uploading...' : 'Continue with Face Scan'}
-                    </Button>
-                  )}
-
-                  {/* Backend Offline Warning */}
-                  {backendOnline === false && (
-                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-sm">
-                      <p className="font-medium">Face Recognition Server Offline</p>
-                      <p className="text-xs mt-1">Start the Python backend or use Demo Login below</p>
-                    </div>
-                  )}
+                  {/* Lookup Button */}
+                  <Button
+                    fullWidth
+                    onClick={handleNfcLookup}
+                    disabled={isLookingUp || !nfcChipId.trim()}
+                    loading={isLookingUp}
+                  >
+                    {isLookingUp ? 'Looking up...' : 'Find My Account'}
+                  </Button>
 
                   {/* Demo Quick Access */}
                   <div className="mt-8 pt-6 border-t border-gray-100">
-                    <p className="text-xs text-body/40 mb-4">Quick Demo Access (Skip Face Recognition)</p>
+                    <p className="text-xs text-body/40 mb-4">Quick Demo Access (Skip NFC & Face)</p>
                     <div className="grid grid-cols-2 gap-3">
                       {availableUsers.map((user) => (
                         <button
@@ -385,88 +358,53 @@ export default function LoginPage() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
+                  className="text-center"
                 >
-                  <div className="text-center mb-4">
-                    <h3 className="text-xl font-bold text-header mb-2">Face Verification</h3>
-                    <p className="text-body/60 text-sm">
-                      Position your face in the frame. Scanning automatically...
-                    </p>
-                  </div>
+                  <h3 className="text-xl font-bold text-header mb-2">Verify Your Face</h3>
+                  <p className="text-body/60 text-sm mb-4">
+                    Welcome back, {userData?.name || 'User'}! Look at the camera to verify.
+                  </p>
 
                   {/* Webcam */}
-                  <div className="relative rounded-2xl overflow-hidden bg-black mb-4">
+                  <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-900">
                     <Webcam
                       ref={webcamRef}
-                      audio={false}
                       screenshotFormat="image/jpeg"
+                      className="w-full aspect-[4/3] object-cover"
                       videoConstraints={{
-                        width: 480,
-                        height: 360,
                         facingMode: 'user',
+                        width: 640,
+                        height: 480,
                       }}
-                      className="w-full"
                     />
 
-                    {/* Face Guide Overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${scanResult === 'success' ? 'border-green-500' :
+                    {/* Scanning Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className={`w-48 h-48 border-4 rounded-full ${scanResult === 'success' ? 'border-green-500' :
                         scanResult === 'mismatch' ? 'border-red-500' :
-                          scanResult === 'no_face' ? 'border-yellow-500' :
-                            'border-white/50'
+                          'border-white/50 animate-pulse'
                         }`} />
                     </div>
 
-                    {/* Scanning Animation */}
-                    {isScanning && (
-                      <motion.div
-                        initial={{ y: '-100%' }}
-                        animate={{ y: '100%' }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="absolute inset-x-0 h-1 bg-gradient-to-b from-transparent via-primary to-transparent"
-                      />
+                    {/* Score Display */}
+                    {scanScore !== null && (
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium">
+                        Score: {scanScore}%
+                      </div>
                     )}
                   </div>
 
-                  {/* Scan Status */}
-                  <div className={`text-center p-3 rounded-xl mb-4 ${scanResult === 'success' ? 'bg-green-50 text-green-700' :
-                    scanResult === 'mismatch' ? 'bg-red-50 text-red-700' :
-                      scanResult === 'no_face' ? 'bg-yellow-50 text-yellow-700' :
-                        'bg-blue-50 text-blue-700'
+                  {/* Status Message */}
+                  <p className={`text-sm font-medium ${scanResult === 'success' ? 'text-green-600' :
+                    scanResult === 'mismatch' ? 'text-red-600' :
+                      scanResult === 'no_face' ? 'text-yellow-600' :
+                        'text-body/60'
                     }`}>
-                    {scanResult === 'success' ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <CheckCircle className="h-5 w-5" />
-                        <span className="font-medium">Identity Verified! Score: {scanScore}%</span>
-                      </div>
-                    ) : scanResult === 'mismatch' ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <AlertCircle className="h-5 w-5" />
-                        <span>Face doesn't match IC. Score: {scanScore}%</span>
-                      </div>
-                    ) : scanResult === 'no_face' ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <ScanFace className="h-5 w-5" />
-                        <span>No face detected. Please face the camera.</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Scanning your face...</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Back Button */}
-                  <Button
-                    variant="outline"
-                    fullWidth
-                    onClick={() => {
-                      setCurrentStep(0)
-                      setIsScanning(false)
-                    }}
-                  >
-                    Back to IC Upload
-                  </Button>
+                    {scanResult === 'success' ? '✓ Identity Verified!' :
+                      scanResult === 'mismatch' ? '✗ Face mismatch - keep trying...' :
+                        scanResult === 'no_face' ? 'Position your face in the circle' :
+                          'Scanning...'}
+                  </p>
                 </motion.div>
               )}
 
@@ -474,48 +412,27 @@ export default function LoginPage() {
               {currentStep === 2 && (
                 <motion.div
                   key="step2"
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-6"
+                  className="text-center py-8"
                 >
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    transition={{ type: 'spring', damping: 10 }}
+                    transition={{ delay: 0.2, type: 'spring' }}
                   >
                     <CheckCircle className="h-20 w-20 text-status-ongoing mx-auto mb-4" />
                   </motion.div>
-                  <h3 className="text-2xl font-bold text-status-ongoing mb-2">Identity Verified!</h3>
-                  {scanScore && (
-                    <p className="text-lg text-body/60 mb-4">Match Score: {scanScore}%</p>
-                  )}
-
-                  {selectedUser && (
-                    <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                      <img
-                        src={selectedUser.avatar}
-                        alt={selectedUser.name}
-                        className="w-16 h-16 rounded-xl object-cover mx-auto mb-3"
-                      />
-                      <p className="font-semibold text-header">{selectedUser.name}</p>
-                      <p className="text-sm text-body/60">IC: {selectedUser.ic}</p>
-                    </div>
-                  )}
-
-                  <p className="text-body/60">Redirecting to dashboard...</p>
-                  <div className="flex justify-center mt-4">
-                    <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-                  </div>
+                  <h3 className="text-2xl font-bold text-header mb-2">Welcome Back!</h3>
+                  <p className="text-body/60">
+                    {userData?.name || 'User'}, you are now logged in.
+                  </p>
+                  <p className="text-sm text-body/40 mt-4">Redirecting to dashboard...</p>
                 </motion.div>
               )}
             </AnimatePresence>
           </Card>
         </motion.div>
-      </div>
-
-      {/* Footer */}
-      <div className="text-center py-4 text-xs text-body/40">
-        <p>© 2025 MyJanji. Secure Digital Contracts.</p>
       </div>
     </div>
   )
