@@ -730,6 +730,7 @@ export default function CreateContractPage() {
           onSkip={handleNFCSkip}
           title="Verify Your Identity"
           description="Scan your MyKad NFC chip to verify your identity before signing"
+          expectedChipId={currentUser?.nfcChipId}
         />
       </Card>
     </motion.div>

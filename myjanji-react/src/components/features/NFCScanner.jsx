@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Nfc, 
-  Smartphone, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Nfc,
+  Smartphone,
+  CheckCircle,
+  AlertCircle,
   Loader2,
   CreditCard,
   Wifi
@@ -18,6 +18,7 @@ export default function NFCScanner({
   title = 'Scan Your MyKad',
   description = 'Click Start, then place your MyKad on the R20C-USB reader',
   allowSkip = true,
+  expectedChipId = null,
 }) {
   const [status, setStatus] = useState('idle') // idle, scanning, success, error
   const [progress, setProgress] = useState(0)
@@ -32,17 +33,17 @@ export default function NFCScanner({
   const parseNFCData = useCallback((rawText) => {
     // Remove any whitespace and special characters
     const cleaned = rawText.replace(/\s+/g, '').trim()
-    
+
     // Try to find IC number pattern (12 digits with optional dashes: YYMMDD-PB-G###)
     const icPattern = /(\d{6}[-]?\d{2}[-]?\d{4})/
     const icMatch = cleaned.match(icPattern)
-    
+
     if (!icMatch) {
       return null
     }
 
     const icNumber = icMatch[1].replace(/-/g, '')
-    
+
     if (icNumber.length !== 12) {
       return null
     }
@@ -99,18 +100,27 @@ export default function NFCScanner({
       clearTimeout(scanTimeoutRef.current)
       scanTimeoutRef.current = setTimeout(() => {
         const parsedData = parseNFCData(value)
-        
+
         if (parsedData) {
+          // Validate against expected chip ID if provided
+          if (expectedChipId && parsedData.chipId !== expectedChipId) {
+            isScanningRef.current = false
+            setStatus('error')
+            setErrorMessage(`Card mismatch! Expected: ${expectedChipId}, Scanned: ${parsedData.chipId}`)
+            onError?.({ message: 'Card mismatch' })
+            return
+          }
+
           isScanningRef.current = false
           setScannedData(parsedData)
           setStatus('success')
           setProgress(100)
-          
+
           // Clear the input
           if (inputRef.current) {
             inputRef.current.value = ''
           }
-          
+
           // Call success callback
           setTimeout(() => {
             onSuccess?.(parsedData)
@@ -212,7 +222,7 @@ export default function NFCScanner({
       <div className="relative w-64 h-64 mb-6">
         {/* Background circle */}
         <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10" />
-        
+
         {/* Scanning rings animation */}
         <AnimatePresence>
           {status === 'scanning' && (
@@ -241,9 +251,9 @@ export default function NFCScanner({
             transition={{ duration: 1, repeat: status === 'scanning' ? Infinity : 0 }}
             className={`
               w-32 h-32 rounded-full flex items-center justify-center
-              ${status === 'success' ? 'bg-status-ongoing' : 
-                status === 'error' ? 'bg-status-breached' : 
-                'gradient-primary'}
+              ${status === 'success' ? 'bg-status-ongoing' :
+                status === 'error' ? 'bg-status-breached' :
+                  'gradient-primary'}
             `}
           >
             {status === 'success' ? (
@@ -305,9 +315,9 @@ export default function NFCScanner({
             exit={{ opacity: 0 }}
             className="text-center"
           >
-            <Button 
-              onClick={startScanning} 
-              icon={Nfc} 
+            <Button
+              onClick={startScanning}
+              icon={Nfc}
               size="lg"
             >
               Start NFC Scan
