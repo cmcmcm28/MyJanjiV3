@@ -14,7 +14,46 @@
           "description": "Lend or borrow a vehicle temporarily",
           "filename": "Vehicle Borrowing.docx",
           "icon": "Car",
-          "fields": ["model", "plate", "startDate", "endDate", "fuel"]
+          "fields": [
+            "creator_name",
+            "creator_id_number",
+            "acceptee_name",
+            "acceptee_id_number",
+            "effective_date",
+            "start_date",
+            "end_date",
+            "rental_fee",
+            "payment_frequency",
+            "vehicle_list",
+            "replacement_value",
+            "signing_date"
+          ],
+          "mapping": {
+            "creator_name": "creator_name",
+            "creator_id_number": "creator_id_number",
+            "acceptee_name": "acceptee_name",
+            "acceptee_id_number": "acceptee_id_number",
+            "effective_date": "effective_date",
+            "start_date": "start_date",
+            "end_date": "end_date",
+            "rental_fee": "rental_fee",
+            "payment_frequency": "payment_frequency",
+            "vehicle_list": "vehicle_list",
+            "replacement_value": "replacement_value",
+            "signing_date": "signing_date",
+            "creatorName": "creator_name",
+            "creatorIdNumber": "creator_id_number",
+            "accepteeName": "acceptee_name",
+            "accepteeIdNumber": "acceptee_id_number",
+            "effectiveDate": "effective_date",
+            "startDate": "start_date",
+            "endDate": "end_date",
+            "rentalFee": "rental_fee",
+            "paymentFrequency": "payment_frequency",
+            "vehicleList": "vehicle_list",
+            "replacementValue": "replacement_value",
+            "signingDate": "signing_date"
+          }
         },
         {
           "id": "ITEM_BORROW",
@@ -22,7 +61,46 @@
           "description": "Lend or borrow personal items",
           "filename": "Item Borrowing.docx",
           "icon": "Package",
-          "fields": ["item", "condition", "returnDate", "value"]
+          "fields": [
+            "creator_name",
+            "creator_id_number",
+            "acceptee_name",
+            "acceptee_id_number",
+            "effective_date",
+            "start_date",
+            "end_date",
+            "rental_fee",
+            "payment_frequency",
+            "equipment_list",
+            "replacement_value",
+            "signing_date"
+          ],
+          "mapping": {
+            "creator_name": "creator_name",
+            "creator_id_number": "creator_id_number",
+            "acceptee_name": "acceptee_name",
+            "acceptee_id_number": "acceptee_id_number",
+            "effective_date": "effective_date",
+            "start_date": "start_date",
+            "end_date": "end_date",
+            "rental_fee": "rental_fee",
+            "payment_frequency": "payment_frequency",
+            "equipment_list": "equipment_list",
+            "replacement_value": "replacement_value",
+            "signing_date": "signing_date",
+            "creatorName": "creator_name",
+            "creatorIdNumber": "creator_id_number",
+            "accepteeName": "acceptee_name",
+            "accepteeIdNumber": "acceptee_id_number",
+            "effectiveDate": "effective_date",
+            "startDate": "start_date",
+            "endDate": "end_date",
+            "rentalFee": "rental_fee",
+            "paymentFrequency": "payment_frequency",
+            "equipmentList": "equipment_list",
+            "replacementValue": "replacement_value",
+            "signingDate": "signing_date"
+          }
         }
       ]
     },
@@ -40,7 +118,18 @@
           "description": "Split shared expenses with others",
           "filename": "Bill Split.docx",
           "icon": "Receipt",
-          "fields": ["description", "total", "share", "date"]
+          "fields": [
+            "description",
+            "total",
+            "share",
+            "date"
+          ],
+          "mapping": {
+            "description": "BILL_DESCRIPTION",
+            "total": "TOTAL_AMOUNT",
+            "share": "SHARE_AMOUNT",
+            "date": "BILL_DATE"
+          }
         },
         {
           "id": "FRIENDLY_LOAN",
@@ -48,7 +137,16 @@
           "description": "Personal loan between friends/family",
           "filename": "Friendly Loan.docx",
           "icon": "Banknote",
-          "fields": ["amount", "purpose", "date"]
+          "fields": [
+            "amount",
+            "purpose",
+            "date"
+          ],
+          "mapping": {
+            "amount": "LOAN_AMOUNT",
+            "purpose": "LOAN_PURPOSE",
+            "date": "LOAN_DATE"
+          }
         }
       ]
     },
@@ -66,7 +164,66 @@
           "description": "Service or gig work agreement",
           "filename": "Freelance Job.docx",
           "icon": "Briefcase",
-          "fields": ["task", "deadline", "price", "deposit"]
+          "fields": [
+            "company_name",
+            "comp_reg_no",
+            "company_address",
+            "hirer_name",
+            "hirer_id_number",
+            "contractor_name",
+            "contractor_id_number",
+            "contractor_address",
+            "effective_date",
+            "service_description",
+            "supervisor_name",
+            "payment_amount",
+            "payment_frequency",
+            "invoicing_frequency",
+            "payment_deadline_days",
+            "start_date",
+            "end_date",
+            "termination_notice_days",
+            "signing_date"
+          ],
+          "mapping": {
+            "company_name": "company_name",
+            "comp_reg_no": "comp_reg_no",
+            "company_address": "company_address",
+            "hirer_name": "hirer_name",
+            "hirer_id_number": "hirer_id_number",
+            "contractor_name": "contractor_name",
+            "contractor_id_number": "contractor_id_number",
+            "contractor_address": "contractor_address",
+            "effective_date": "effective_date",
+            "service_description": "service_description",
+            "supervisor_name": "supervisor_name",
+            "payment_amount": "payment_amount",
+            "payment_frequency": "payment_frequency",
+            "invoicing_frequency": "invoicing_frequency",
+            "payment_deadline_days": "payment_deadline_days",
+            "start_date": "start_date",
+            "end_date": "end_date",
+            "termination_notice_days": "termination_notice_days",
+            "signing_date": "signing_date",
+            "companyName": "company_name",
+            "companyRegNumber": "comp_reg_no",
+            "companyAddress": "company_address",
+            "companySignatory": "hirer_name",
+            "contractorName": "contractor_name",
+            "contractorIc": "contractor_id_number",
+            "contractorAddress": "contractor_address",
+            "effectiveDate": "effective_date",
+            "scopeOfWork": "service_description",
+            "supervisorName": "supervisor_name",
+            "paymentAmount": "payment_amount",
+            "paymentFrequency": "payment_frequency",
+            "invoicingFrequency": "invoicing_frequency",
+            "paymentDeadlineDays": "payment_deadline_days",
+            "startDate": "start_date",
+            "endDate": "end_date",
+            "noticePeriodDays": "termination_notice_days",
+            "signingDate": "signing_date"
+          }
         },
         {
           "id": "SALE_DEPOSIT",
@@ -74,7 +231,50 @@
           "description": "Sale with deposit agreement",
           "filename": "Sales & Deposit.docx",
           "icon": "ShoppingBag",
-          "fields": ["item", "price", "deposit", "dueDate"]
+          "fields": [
+            "depositor_name",
+            "depositor_nric",
+            "recipient_name",
+            "recipient_nric",
+            "date",
+            "transaction_description",
+            "deposit_amount",
+            "payment_method",
+            "deposit_deadline",
+            "total_transaction_amount",
+            "balance_payment_terms",
+            "refund_status",
+            "signing_date"
+          ],
+          "mapping": {
+            "depositor_name": "depositor_name",
+            "depositor_nric": "depositor_nric",
+            "recipient_name": "recipient_name",
+            "recipient_nric": "recipient_nric",
+            "date": "date",
+            "transaction_description": "transaction_description",
+            "deposit_amount": "deposit_amount",
+            "payment_method": "payment_method",
+            "deposit_deadline": "deposit_deadline",
+            "total_transaction_amount": "total_transaction_amount",
+            "balance_payment_terms": "balance_payment_terms",
+            "refund_status": "refund_status",
+            "signing_date": "signing_date",
+            "depositorName": "depositor_name",
+            "depositorNric": "depositor_nric",
+            "recipientName": "recipient_name",
+            "recipientNric": "recipient_nric",
+            "agreementDate": "date",
+            "transactionDescription": "transaction_description",
+            "depositAmount": "deposit_amount",
+            "paymentMethod": "payment_method",
+            "depositDeadline": "deposit_deadline",
+            "totalTransactionAmount": "total_transaction_amount",
+            "balancePaymentTerms": "balance_payment_terms",
+            "refundStatus": "refund_status",
+            "refundDays": "refund_days",
+            "signingDate": "signing_date"
+          }
         }
       ]
     }

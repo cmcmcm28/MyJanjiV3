@@ -147,44 +147,83 @@ export default function CreateContractPage() {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
 
   // Build placeholders for contract template
+  // IMPORTANT: Keys must match the {{placeholder}} names in the Word template (lowercase with underscores)
   const buildPlaceholders = () => {
     const acceptee = availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId]
 
     return {
-      // Parties
-      CREATOR_NAME: currentUser?.name || '',
-      CREATOR_IC: currentUser?.ic || '',
-      ACCEPTEE_NAME: acceptee?.name || '',
-      ACCEPTEE_IC: acceptee?.ic || '',
+      // Parties - lowercase to match Word templates
+      // Use form data first (from VehicleLoanContractForm), then fallback to user lookup
+      creator_name: formData?.creatorName || currentUser?.name || '',
+      creator_id_number: formData?.creatorIdNumber || currentUser?.ic || '',
+      acceptee_name: formData?.accepteeName || acceptee?.name || '',
+      acceptee_id_number: formData?.accepteeIdNumber || acceptee?.ic || '',
 
-      // Dates
-      START_DATE: formData?.startDate || '',
-      END_DATE: formData?.endDate || formData?.returnDate || formData?.dueDate || '',
-      RETURN_DATE: formData?.returnDate || formData?.dueDate || '',
-      DUE_DATE: formData?.dueDate || '',
-      CONTRACT_DATE: new Date().toLocaleDateString('en-MY'),
+      // Dates - use form data values, not hardcoded current date
+      start_date: formData?.startDate || '',
+      end_date: formData?.endDate || formData?.returnDate || formData?.dueDate || '',
+      return_date: formData?.returnDate || formData?.dueDate || '',
+      due_date: formData?.dueDate || '',
+      effective_date: formData?.effectiveDate || new Date().toISOString().split('T')[0],
+      signing_date: formData?.signingDate || new Date().toISOString().split('T')[0],
 
-      // Items/Assets
-      ITEM_NAME: formData?.item || formData?.name || '',
-      ITEM_DESCRIPTION: formData?.description || '',
-      ITEM_CONDITION: formData?.condition || 'Good',
-      ITEM_VALUE: formData?.value || '',
+      // Items/Assets (Item Borrowing & Vehicle)
+      item_name: formData?.item || formData?.name || '',
+      item_description: formData?.description || '',
+      item_condition: formData?.condition || 'Good',
+      item_value: formData?.value || '',
+      equipment_list: formData?.equipmentList || formData?.vehicleList || '',
+      replacement_value: formData?.replacementValue || formData?.value || '',
+      rental_fee: formData?.rentalFee || '',
+      payment_frequency: formData?.paymentFrequency || '',
 
       // Money
-      AMOUNT: formData?.amount || '',
-      INTEREST_RATE: formData?.interestRate || '0',
-      PAYMENT_TERMS: formData?.paymentTerms || '',
+      amount: formData?.amount || '',
+      interest_rate: formData?.interestRate || '0',
+      payment_terms: formData?.paymentTerms || '',
 
       // Vehicle specific
-      VEHICLE_MODEL: formData?.model || '',
-      VEHICLE_PLATE: formData?.plate || '',
-      FUEL: formData?.fuel || '',
+      vehicle_list: formData?.vehicleList || formData?.model || '',
+      vehicle_model: formData?.model || '',
+      vehicle_plate: formData?.plate || '',
+      fuel: formData?.fuel || '',
+
+      // Freelance Contract specific
+      company_name: formData?.companyName || '',
+      comp_reg_no: formData?.companyRegNumber || '',
+      company_address: formData?.companyAddress || '',
+      hirer_name: formData?.companySignatory || currentUser?.name || '',
+      hirer_id_number: currentUser?.ic || '', // Use current user's IC as hirer
+      contractor_name: formData?.contractorName || '',
+      contractor_id_number: formData?.contractorIc || '',
+      contractor_address: formData?.contractorAddress || '',
+      service_description: formData?.scopeOfWork || '',
+      supervisor_name: formData?.supervisorName || '',
+      payment_amount: formData?.paymentAmount || '',
+      invoicing_frequency: formData?.invoicingFrequency || '',
+      payment_deadline_days: formData?.paymentDeadlineDays || '',
+      termination_notice_days: formData?.noticePeriodDays || '',
+
+      // Deposit Contract specific
+      depositor_name: formData?.depositorName || '',
+      depositor_nric: formData?.depositorNric || '',
+      recipient_name: formData?.recipientName || '',
+      recipient_nric: formData?.recipientNric || '',
+      date: formData?.agreementDate || new Date().toISOString().split('T')[0],
+      transaction_description: formData?.transactionDescription || '',
+      deposit_amount: formData?.depositAmount || '',
+      payment_method: formData?.paymentMethod || '',
+      deposit_deadline: formData?.depositDeadline || '',
+      total_transaction_amount: formData?.totalTransactionAmount || '',
+      balance_payment_terms: formData?.balancePaymentTerms || '',
+      refund_status: formData?.refundStatus || '',
+      refund_days: formData?.refundDays || '',
 
       // Additional
-      TERMS: formData?.terms || '',
-      NOTES: formData?.notes || '',
+      terms: formData?.terms || '',
+      notes: formData?.notes || '',
 
-      // Spread form data for any template-specific fields
+      // Spread form data for any template-specific fields (in camelCase - backend mapping will handle)
       ...formData,
     }
   }
@@ -380,7 +419,7 @@ export default function CreateContractPage() {
             contract_name: formData.name || selectedTemplate?.name || 'Untitled Contract',
             contract_topic: formData.topic || selectedTemplate?.description || '',
             template_type: selectedTemplate?.id,
-            form_data: { ...formData },
+            form_data: buildPlaceholders(), // Use buildPlaceholders() for proper snake_case keys
             creator_signature: creatorSignature,
             creator_name: currentUser.name || currentUser.fullName || '',
             creator_ic: currentUser.ic || currentUser.icNumber || '',

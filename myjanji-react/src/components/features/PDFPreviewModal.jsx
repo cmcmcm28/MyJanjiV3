@@ -152,47 +152,50 @@ export default function PDFPreviewModal({
   }
 
   // Build placeholders object from form data
+  // IMPORTANT: Keys must match the {{placeholder}} names in the Word template (lowercase with underscores)
   const buildPlaceholders = (formData, creator, acceptee) => {
     return {
-      // Parties
-      CREATOR_NAME: creator?.name || formData?.creatorName || '',
-      CREATOR_IC: creator?.ic || formData?.creatorIc || '',
-      ACCEPTEE_NAME: acceptee?.name || formData?.accepteeName || '',
-      ACCEPTEE_IC: acceptee?.ic || formData?.accepteeIc || '',
+      // Parties - lowercase to match Word templates
+      creator_name: creator?.name || formData?.creatorName || '',
+      creator_id_number: creator?.ic || formData?.creatorIc || '',
+      acceptee_name: acceptee?.name || formData?.accepteeName || '',
+      acceptee_id_number: acceptee?.ic || formData?.accepteeIc || '',
 
       // Dates
-      START_DATE: formatDate(formData?.startDate),
-      END_DATE: formatDate(formData?.endDate || formData?.returnDate || formData?.dueDate),
-      RETURN_DATE: formatDate(formData?.returnDate || formData?.dueDate),
-      DUE_DATE: formatDate(formData?.dueDate),
-      CONTRACT_DATE: formatDate(new Date()),
+      start_date: formatDate(formData?.startDate),
+      end_date: formatDate(formData?.endDate || formData?.returnDate || formData?.dueDate),
+      return_date: formatDate(formData?.returnDate || formData?.dueDate),
+      due_date: formatDate(formData?.dueDate),
+      effective_date: formatDate(formData?.effectiveDate || new Date()),
+      signing_date: formatDate(new Date()),
 
       // Items/Assets
-      ITEM_NAME: formData?.item || formData?.itemName || formData?.name || '',
-      ITEM_DESCRIPTION: formData?.description || formData?.itemDescription || '',
-      ITEM_CONDITION: formData?.condition || formData?.itemCondition || 'Good',
-      ITEM_VALUE: formData?.value || formData?.estimatedValue || '',
+      item_name: formData?.item || formData?.itemName || formData?.name || '',
+      item_description: formData?.description || formData?.itemDescription || '',
+      item_condition: formData?.condition || formData?.itemCondition || 'Good',
+      item_value: formData?.value || formData?.estimatedValue || '',
+      equipment_list: formData?.equipmentList || formData?.equipment || '',
+      replacement_value: formData?.replacementValue || formData?.value || '',
+      rental_fee: formData?.rentalFee || '',
+      payment_frequency: formData?.paymentFrequency || '',
 
       // Money
-      AMOUNT: formData?.amount || formData?.loanAmount || '',
-      INTEREST_RATE: formData?.interestRate || '0',
-      PAYMENT_TERMS: formData?.paymentTerms || '',
-
-      // Signatures - Pass raw base64 or URL
-      CREATOR_SIGNATURE: creator?.signature || formData?.creatorSignature || '',
-      ACCEPTEE_SIGNATURE: acceptee?.signature || formData?.accepteeSignature || '',
+      amount: formData?.amount || formData?.loanAmount || '',
+      interest_rate: formData?.interestRate || '0',
+      payment_terms: formData?.paymentTerms || '',
 
       // Vehicle specific
-      VEHICLE_MODEL: formData?.vehicleModel || formData?.model || '',
-      VEHICLE_PLATE: formData?.vehiclePlate || formData?.plateNumber || '',
-      VEHICLE_COLOR: formData?.vehicleColor || formData?.color || '',
+      vehicle_list: formData?.vehicleList || formData?.vehicleModel || '',
+      vehicle_model: formData?.vehicleModel || formData?.model || '',
+      vehicle_plate: formData?.vehiclePlate || formData?.plateNumber || '',
+      vehicle_color: formData?.vehicleColor || formData?.color || '',
 
       // Additional
-      TERMS: formData?.terms || formData?.additionalTerms || '',
-      NOTES: formData?.notes || '',
-      LOCATION: formData?.location || '',
+      terms: formData?.terms || formData?.additionalTerms || '',
+      notes: formData?.notes || '',
+      location: formData?.location || '',
 
-      // Spread any additional form data
+      // Spread any additional form data (pass through raw keys)
       ...formData,
     }
   }

@@ -116,7 +116,15 @@ export default function LoanContractForm({ formData, handleChange, acceptees = [
                         <Select
                             label="Who is borrowing the equipment?"
                             value={formData.accepteeId || ''}
-                            onChange={(e) => handleChange('accepteeId', e.target.value)}
+                            onChange={(e) => {
+                                const selectedId = e.target.value
+                                handleChange('accepteeId', selectedId)
+                                const selectedUser = acceptees.find(u => u.id === selectedId)
+                                if (selectedUser) {
+                                    handleChange('accepteeName', selectedUser.name)
+                                    handleChange('accepteeIdNumber', selectedUser.ic || selectedUser.user_id || '')
+                                }
+                            }}
                             options={acceptees.map(u => ({ value: u.id, label: `${u.name} (${u.ic})` }))}
                             placeholder="Select Borrower"
                             required

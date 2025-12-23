@@ -12,6 +12,7 @@ from docx import Document
 from docx.shared import Inches
 from docx2pdf import convert
 from supabase import create_client, Client
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -36,6 +37,44 @@ TEMPLATE_PATHS = {
     "FREELANCE_JOB": "Service & Gig Work/Freelance Job.docx",
     "SALE_DEPOSIT": "Service & Gig Work/Sales & Deposit.docx",
 }
+
+# Load template config for mapping
+try:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    CONFIG_PATH = os.path.join(BASE_DIR, 'templates_config.json')
+    with open(CONFIG_PATH, 'r') as f:
+        TEMPLATE_CONFIG = json.load(f)
+except Exception as e:
+    print(f"Warning: Failed to load templates_config.json: {e}")
+    TEMPLATE_CONFIG = {"categories": []}
+
+def get_template_mapping(template_id: str) -> dict:
+    """Find mapping for a given template ID"""
+    for category in TEMPLATE_CONFIG.get('categories', []):
+        for template in category.get('templates', []):
+            if template['id'] == template_id:
+                return template.get('mapping', {})
+    return {}
+
+def map_placeholders(placeholders: dict, mapping: dict) -> dict:
+    """
+    Map frontend keys to Docx placeholders based on config.
+    If a key is not in mapping, it is passed through as-is (fallback).
+    """
+    mapped_data = {}
+    
+    # 1. Apply mapping
+    for frontend_key, docx_key in mapping.items():
+        if frontend_key in placeholders:
+            mapped_data[docx_key] = placeholders[frontend_key]
+            
+    # 2. Pass through any keys that didn't match mapping (in case frontend sends raw keys)
+    for key, value in placeholders.items():
+        if key not in mapping:
+            mapped_data[key] = value
+            
+    return mapped_data
+
 
 # Local temp folder for working files
 TEMP_FOLDER = "temp_contracts"
@@ -86,7 +125,7 @@ def download_template(template_name: str) -> str:
     # Resolve template ID to storage path
     storage_path = get_template_path(template_name)
 
-    print(f"📥 Downloading template: {storage_path}")
+    print(f"Downloading template: {storage_path}")
 
     try:
         # Try using signed URL (handles special characters better)
@@ -94,7 +133,7 @@ def download_template(template_name: str) -> str:
             TEMPLATE_BUCKET).create_signed_url(storage_path, 60)
         if signed_url_response and 'signedURL' in signed_url_response:
             url = signed_url_response['signedURL']
-            print(f"📡 Using signed URL")
+            print(f"Using signed URL")
 
             response = requests.get(url)
             if response.status_code == 200:
@@ -104,14 +143,14 @@ def download_template(template_name: str) -> str:
                 with open(local_path, 'wb') as f:
                     f.write(response.content)
 
-                print(f"✅ Template saved to: {local_path}")
+                print(f"Template saved to: {local_path}")
                 return local_path
     except Exception as e:
-        print(f"⚠️ Signed URL failed: {e}")
+        print(f"Signed URL failed: {e}")
 
     # Fallback: try direct download
     try:
-        print(f"📡 Trying direct download...")
+        print(f"Trying direct download...")
         response = supabase.storage.from_(
             TEMPLATE_BUCKET).download(storage_path)
 
@@ -121,7 +160,7 @@ def download_template(template_name: str) -> str:
         with open(local_path, 'wb') as f:
             f.write(response)
 
-        print(f"✅ Template saved to: {local_path}")
+        print(f"Template saved to: {local_path}")
         return local_path
     except Exception as e:
         raise Exception(f"Failed to download template '{storage_path}': {e}")
@@ -150,7 +189,7 @@ def fetch_image(image_source):
 
         return None
     except Exception as e:
-        print(f"⚠️ Failed to fetch image: {e}")
+        print(f"Failed to fetch image: {e}")
         return None
 
 
@@ -160,7 +199,7 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
     Handles text replacement and image insertion for signatures.
     Returns path to the filled document.
     """
-    print(f"📝 Filling template with {len(placeholders)} placeholders")
+    print(f"Filling template with {len(placeholders)} placeholders")
 
     doc = Document(doc_path)
 
@@ -169,37 +208,46 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
                       'creator_signature', 'acceptee_signature', 'signature']
 
     def process_paragraph(paragraph):
+        # We invoke this for every placeholder.
         for key, value in placeholders.items():
             placeholder = f"{{{{{key}}}}}"  # {{KEY}}
-
+            
+            # Quick check if placeholder exists in the full text at all
             if placeholder in paragraph.text:
+                
                 # Special handling for signatures (images)
                 if key in signature_keys and value:
-                    print(f"🖼️ Found signature placeholder: {key}")
-                    # Clear the placeholder text
-                    # We need to find the specific run containing the placeholder
-                    # Note: This simple replacement assumes placeholder is not split across runs
-                    # For a robust solution, we iterate runs.
-
-                    found = False
+                    print(f"Found signature placeholder: {key}")
+                    found_sig = False
                     for run in paragraph.runs:
                         if placeholder in run.text:
-                            # Remove the placeholder text
                             run.text = run.text.replace(placeholder, "")
-
-                            # Insert image
                             img_stream = fetch_image(value)
                             if img_stream:
                                 run.add_picture(img_stream, width=Inches(1.5))
-                                print(f"✅ Signature inserted for {key}")
-                                found = True
+                                print(f"Signature inserted for {key}")
+                                found_sig = True
+                    
+                    if not found_sig:
+                         # If signature placeholder is split across runs
+                         print(f"Signature placeholder {key} split across runs. clearing and appending.")
+                         paragraph.text = paragraph.text.replace(placeholder, "")
+                         run = paragraph.add_run()
+                         img_stream = fetch_image(value)
+                         if img_stream:
+                             run.add_picture(img_stream, width=Inches(1.5))
 
                 else:
                     # Text replacement
+                    replaced_in_run = False
                     for run in paragraph.runs:
                         if placeholder in run.text:
-                            run.text = run.text.replace(
-                                placeholder, str(value))
+                            run.text = run.text.replace(placeholder, str(value))
+                            replaced_in_run = True
+                    
+                    # If not found in any single run, it means it's split across runs
+                    if not replaced_in_run:
+                        paragraph.text = paragraph.text.replace(placeholder, str(value))
 
     # Replace in paragraphs
     for paragraph in doc.paragraphs:
@@ -215,8 +263,8 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
     # Save filled document
     filled_path = doc_path.replace('.docx', '_filled.docx')
     doc.save(filled_path)
-
-    print(f"✅ Filled template saved to: {filled_path}")
+    
+    print(f"Filled template saved to: {filled_path}")
     return filled_path
 
 
@@ -225,27 +273,27 @@ def convert_to_pdf(docx_path: str) -> str:
     Convert .docx to PDF using Microsoft Word.
     Returns path to the PDF file.
     """
-    print(f"🔄 Converting to PDF...")
+    print(f"Converting to PDF...")
 
     pdf_path = docx_path.replace('.docx', '.pdf')
 
     try:
         convert(docx_path, pdf_path)
-        print(f"✅ PDF created: {pdf_path}")
+        print(f"PDF created: {pdf_path}")
         return pdf_path
     except AttributeError as e:
         # Known issue: Word.Application.Quit fails but PDF is created successfully
         if "Quit" in str(e) and os.path.exists(pdf_path):
-            print(f"⚠️ Word quit error ignored, PDF created: {pdf_path}")
+            print(f"Word quit error ignored, PDF created: {pdf_path}")
             return pdf_path
-        print(f"❌ PDF conversion failed: {e}")
+        print(f"PDF conversion failed: {e}")
         raise
     except Exception as e:
         # Check if PDF was created despite error
         if os.path.exists(pdf_path):
-            print(f"⚠️ Error occurred but PDF exists: {pdf_path}")
+            print(f"Error occurred but PDF exists: {pdf_path}")
             return pdf_path
-        print(f"❌ PDF conversion failed: {e}")
+        print(f"PDF conversion failed: {e}")
         raise
 
 
@@ -259,7 +307,7 @@ def upload_pdf(pdf_path: str, contract_id: str) -> str:
     # Storage path in the PDF bucket
     storage_path = f"{GENERATED_FOLDER}/{contract_id}.pdf"
 
-    print(f"📤 Uploading PDF to bucket '{PDF_BUCKET}': {storage_path}")
+    print(f"Uploading PDF to bucket '{PDF_BUCKET}': {storage_path}")
 
     # Read PDF file
     with open(pdf_path, 'rb') as f:
@@ -276,22 +324,33 @@ def upload_pdf(pdf_path: str, contract_id: str) -> str:
     public_url = supabase.storage.from_(
         PDF_BUCKET).get_public_url(storage_path)
 
-    print(f"✅ PDF uploaded: {public_url}")
+    print(f"PDF uploaded: {public_url}")
     return public_url
 
 
 def generate_contract(template_name: str, placeholders: dict, contract_id: str) -> dict:
     """
-    Full workflow: download template → fill placeholders → convert to PDF → upload.
+    Full workflow: download template -> fill placeholders -> convert to PDF -> upload.
     Returns dict with success status and PDF URL.
     """
     try:
+        # Step 0: Map placeholders
+        mapping = get_template_mapping(template_name)
+        print(f"\nDEBUG: Template ID: {template_name}")
+        print(f"DEBUG: Mapping Config: {mapping}")
+        print(f"DEBUG: Raw Placeholders (Keys): {list(placeholders.keys())}")
+        
+        mapped_placeholders = map_placeholders(placeholders, mapping)
+        
+        print(f"DEBUG: Mapped Placeholders: {mapped_placeholders}")
+        print(f"Mapped placeholders for {template_name}")
+
         # Step 1: Download template
         doc_path = download_template(template_name)
 
         # Step 2: Fill placeholders
-        filled_path = fill_template(doc_path, placeholders)
-
+        filled_path = fill_template(doc_path, mapped_placeholders)
+        
         # Step 3: Convert to PDF
         pdf_path = convert_to_pdf(filled_path)
 
@@ -308,7 +367,7 @@ def generate_contract(template_name: str, placeholders: dict, contract_id: str) 
         }
 
     except Exception as e:
-        print(f"❌ Contract generation failed: {e}")
+        print(f"Contract generation failed: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -339,13 +398,17 @@ def prepare_contract(template_name: str, placeholders: dict) -> dict:
         # Generate unique ID for this prepared contract
         prepare_id = str(uuid.uuid4())[:8]
 
-        print(f"📋 Preparing contract: {template_name} (ID: {prepare_id})")
+        print(f"Preparing contract: {template_name} (ID: {prepare_id})")
+
+        # Step 0: Map placeholders
+        mapping = get_template_mapping(template_name)
+        mapped_placeholders = map_placeholders(placeholders, mapping)
 
         # Step 1: Download template
         doc_path = download_template(template_name)
 
         # Step 2: Fill placeholders
-        filled_path = fill_template(doc_path, placeholders)
+        filled_path = fill_template(doc_path, mapped_placeholders)
 
         # Step 3: Convert to PDF
         pdf_path = convert_to_pdf(filled_path)
@@ -357,7 +420,7 @@ def prepare_contract(template_name: str, placeholders: dict) -> dict:
         # Cleanup temp files (but keep the prepared PDF)
         cleanup_temp_files([doc_path, filled_path])
 
-        print(f"✅ Contract prepared: {prepared_pdf_path}")
+        print(f"Contract prepared: {prepared_pdf_path}")
 
         return {
             "success": True,
@@ -366,7 +429,7 @@ def prepare_contract(template_name: str, placeholders: dict) -> dict:
         }
 
     except Exception as e:
-        print(f"❌ Contract preparation failed: {e}")
+        print(f"Contract preparation failed: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -392,9 +455,9 @@ def cleanup_prepared_contract(prepare_id: str):
     if os.path.exists(pdf_path):
         try:
             os.remove(pdf_path)
-            print(f"🗑️ Cleaned up prepared contract: {prepare_id}")
+            print(f"Cleaned up prepared contract: {prepare_id}")
         except Exception as e:
-            print(f"⚠️ Failed to cleanup prepared contract: {e}")
+            print(f"Failed to cleanup prepared contract: {e}")
 
 
 def save_signature_image(signature_base64: str, signature_id: str) -> str:
@@ -415,10 +478,10 @@ def save_signature_image(signature_base64: str, signature_id: str) -> str:
         with open(signature_path, 'wb') as f:
             f.write(signature_data)
 
-        print(f"✅ Signature saved: {signature_path}")
+        print(f"Signature saved: {signature_path}")
         return signature_path
     except Exception as e:
-        print(f"❌ Failed to save signature: {e}")
+        print(f"Failed to save signature: {e}")
         return None
 
 
@@ -440,7 +503,7 @@ def generate_signed_contract(
     from datetime import datetime
 
     try:
-        print(f"📝 Generating signed contract: {contract_id}")
+        print(f"Generating signed contract: {contract_id}")
 
         # Save signature to temp file
         signature_path = save_signature_image(
@@ -453,13 +516,10 @@ def generate_signed_contract(
         signed_placeholders = {**placeholders}
 
         # Add creator signature (will be inserted as image)
-        # Support both uppercase and lowercase placeholder names
         if signature_path and os.path.exists(signature_path):
-            # Read signature as base64 for the fill_template function
             with open(signature_path, 'rb') as f:
                 sig_data = f.read()
             sig_base64 = f"data:image/png;base64,{base64.b64encode(sig_data).decode()}"
-            # Add signature for both uppercase and lowercase placeholders
             signed_placeholders['CREATOR_SIGNATURE'] = sig_base64
             signed_placeholders['creator_signature'] = sig_base64
 
@@ -479,8 +539,14 @@ def generate_signed_contract(
         # Download template fresh
         doc_path = download_template(template_name)
 
+        # Apply mapping to ensure frontend keys match Word template placeholders
+        mapping = get_template_mapping(template_name)
+        mapped_placeholders = map_placeholders(signed_placeholders, mapping)
+        
+        print(f"DEBUG: Signed contract placeholders: {list(mapped_placeholders.keys())}")
+
         # Fill with updated placeholders including signature
-        filled_path = fill_template(doc_path, signed_placeholders)
+        filled_path = fill_template(doc_path, mapped_placeholders)
 
         # Convert to PDF
         pdf_path = convert_to_pdf(filled_path)
@@ -490,11 +556,11 @@ def generate_signed_contract(
         if signature_path and os.path.exists(signature_path):
             cleanup_temp_files([signature_path])
 
-        print(f"✅ Signed contract generated: {pdf_path}")
+        print(f"Signed contract generated: {pdf_path}")
         return pdf_path
 
     except Exception as e:
-        print(f"❌ Failed to generate signed contract: {e}")
+        print(f"Failed to generate signed contract: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -506,9 +572,24 @@ def preview_contract(template_name: str, placeholders: dict) -> str:
     Generate preview of contract (filled .docx).
     Returns local path to filled document.
     """
-    doc_path = download_template(template_name)
-    filled_path = fill_template(doc_path, placeholders)
-    return filled_path
+    try:
+        # Step 0: Map placeholders
+        print(f"\nDEBUG: Previewing template: {template_name}")
+        mapping = get_template_mapping(template_name)
+        print(f"DEBUG: Preview Mapping Config: {mapping}")
+        print(f"DEBUG: Raw Preview Placeholders: {placeholders}")
+        
+        mapped_placeholders = map_placeholders(placeholders, mapping)
+        print(f"DEBUG: Mapped Preview Placeholders: {mapped_placeholders}")
+        
+        doc_path = download_template(template_name)
+        filled_path = fill_template(doc_path, mapped_placeholders)
+        return filled_path
+    except Exception as e:
+        print(f"Preview failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def upload_contract_pdf(pdf_path: str, user_id: str, contract_id: str) -> str:
@@ -522,7 +603,7 @@ def upload_contract_pdf(pdf_path: str, user_id: str, contract_id: str) -> str:
     # Storage path: user_id/contract_id.pdf
     storage_path = f"{user_id}/{contract_id}.pdf"
 
-    print(f"📤 Uploading PDF to bucket '{PDF_BUCKET}': {storage_path}")
+    print(f"Uploading PDF to bucket '{PDF_BUCKET}': {storage_path}")
 
     # Read PDF file
     with open(pdf_path, 'rb') as f:
@@ -538,7 +619,7 @@ def upload_contract_pdf(pdf_path: str, user_id: str, contract_id: str) -> str:
     except Exception as e:
         # If file already exists, try to update it
         if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-            print(f"⚠️ File exists, updating: {storage_path}")
+            print(f"File exists, updating: {storage_path}")
             response = supabase.storage.from_(PDF_BUCKET).update(
                 storage_path,
                 pdf_data,
@@ -551,7 +632,7 @@ def upload_contract_pdf(pdf_path: str, user_id: str, contract_id: str) -> str:
     public_url = supabase.storage.from_(
         PDF_BUCKET).get_public_url(storage_path)
 
-    print(f"✅ PDF uploaded: {public_url}")
+    print(f"PDF uploaded: {public_url}")
     return public_url
 
 
@@ -562,14 +643,13 @@ def create_contract_record(contract_data: dict) -> dict:
     """
     supabase = get_supabase_client()
 
-    print(f"📝 Creating contract record: {contract_data.get('contract_id')}")
+    print(f"Creating contract record: {contract_data.get('contract_id')}")
 
     # Insert into contracts table
     result = supabase.table('contracts').insert(contract_data).execute()
 
     if result.data:
-        print(
-            f"✅ Contract record created: {result.data[0].get('contract_id')}")
+        print(f"Contract record created: {result.data[0].get('contract_id')}")
         return result.data[0]
     else:
         raise Exception("Failed to create contract record")
@@ -605,16 +685,17 @@ def finalize_contract(
         # Generate contract ID
         contract_id = f"CNT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:4].upper()}"
 
-        print(f"🔒 Finalizing contract: {contract_id}")
+        print(f"Finalizing contract: {contract_id}")
 
         # Step 1: Generate signed contract with signature embedded
         if creator_signature:
-            print("📝 Generating signed version with creator signature...")
+            print("Generating signed version with creator signature...")
 
             # Build placeholders from form_data
+            # Use lowercase keys to match Word template placeholders
             placeholders = {**form_data}
-            placeholders['CREATOR_NAME'] = creator_name or ''
-            placeholders['CREATOR_IC'] = creator_ic or ''
+            placeholders['creator_name'] = creator_name or ''
+            placeholders['creator_id_number'] = creator_ic or ''
 
             # Generate signed PDF
             pdf_path = generate_signed_contract(
@@ -627,8 +708,7 @@ def finalize_contract(
             )
 
             if not pdf_path:
-                # Fallback to prepared contract if signing fails
-                print("⚠️ Signed contract generation failed, using prepared contract")
+                print("Signed contract generation failed, using prepared contract")
                 pdf_path = get_prepared_contract(prepare_id)
         else:
             # No signature provided, use prepared contract
@@ -643,7 +723,7 @@ def finalize_contract(
         # Step 2: Upload PDF to storage under user_id folder
         pdf_url = upload_contract_pdf(pdf_path, user_id, contract_id)
 
-        # Step 3: Create contract record in database (without creator_signature_url column)
+        # Step 3: Create contract record in database
         contract_data = {
             "contract_id": contract_id,
             "created_user_id": user_id,
@@ -677,7 +757,7 @@ def finalize_contract(
         }
 
     except Exception as e:
-        print(f"❌ Contract finalization failed: {e}")
+        print(f"Contract finalization failed: {e}")
         import traceback
         traceback.print_exc()
         return {

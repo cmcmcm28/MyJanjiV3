@@ -6,22 +6,32 @@ import base64
 import time
 import gc
 import numpy as np
-import cv2
+# ... (imports)
+from config import UPLOAD_FOLDER, PASSING_THRESHOLD_DISTANCE, PASSING_THRESHOLD_PERCENTAGE
+import contract_service
+
 from flask import Flask, render_template, request, jsonify, url_for, make_response
 from flask_cors import CORS
 
-# Import from our modules
-from config import UPLOAD_FOLDER, PASSING_THRESHOLD_DISTANCE, PASSING_THRESHOLD_PERCENTAGE
-import ocr_service
-import face_service
-import contract_service
+# Optional dependencies (bypass if cv2/numpy fails on Python 3.14)
+try:
+    import cv2
+    import ocr_service
+    import face_service
+    AI_AVAILABLE = True
+    # Warmup AI models on startup
+    face_service.warmup()
+except ImportError as e:
+    print(f"⚠️ AI Services unavailable (cv2/numpy missing): {e}")
+    AI_AVAILABLE = False
+    cv2 = None
+    ocr_service = None
+    face_service = None
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
-
-# Warmup AI models on startup
-face_service.warmup()
+# ...
 
 
 # --- ROUTES ---
@@ -470,11 +480,10 @@ def preview_contract():
             response.headers.add('Access-Control-Allow-Origin', '*')
             return response, 400
 
-        print(f"👁️ Previewing contract: {template_name}")
+        print(f"Previewing contract: {template_name}")
 
-        # Download and fill template
-        doc_path = contract_service.download_template(template_name)
-        filled_path = contract_service.fill_template(doc_path, placeholders)
+        # Use preview_contract which includes placeholder mapping
+        filled_path = contract_service.preview_contract(template_name, placeholders)
 
         # Convert to PDF
         pdf_path = contract_service.convert_to_pdf(filled_path)
@@ -484,6 +493,7 @@ def preview_contract():
             pdf_data = f.read()
 
         # Cleanup temp files
+        doc_path = filled_path.replace('_filled.docx', '.docx')
         contract_service.cleanup_temp_files([doc_path, filled_path, pdf_path])
 
         # Return PDF as blob
