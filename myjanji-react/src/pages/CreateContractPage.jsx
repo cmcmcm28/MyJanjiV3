@@ -119,6 +119,8 @@ export default function CreateContractPage() {
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [hasConsented, setHasConsented] = useState(false)
+  const [prepareId, setPrepareId] = useState(null)
+  const [isPreparing, setIsPreparing] = useState(false)
 
   const availableAcceptees = (availableUsers || Object.values(users)).filter(u => u.id !== currentUser?.id)
 
@@ -141,8 +143,98 @@ export default function CreateContractPage() {
     setCurrentStep(2)
   }
 
-  const handleNext = () => {
+  // Backend URL for contract preparation
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+
+  // Build placeholders for contract template
+  const buildPlaceholders = () => {
+    const acceptee = availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId]
+
+    return {
+      // Parties
+      CREATOR_NAME: currentUser?.name || '',
+      CREATOR_IC: currentUser?.ic || '',
+      ACCEPTEE_NAME: acceptee?.name || '',
+      ACCEPTEE_IC: acceptee?.ic || '',
+
+      // Dates
+      START_DATE: formData?.startDate || '',
+      END_DATE: formData?.endDate || formData?.returnDate || formData?.dueDate || '',
+      RETURN_DATE: formData?.returnDate || formData?.dueDate || '',
+      DUE_DATE: formData?.dueDate || '',
+      CONTRACT_DATE: new Date().toLocaleDateString('en-MY'),
+
+      // Items/Assets
+      ITEM_NAME: formData?.item || formData?.name || '',
+      ITEM_DESCRIPTION: formData?.description || '',
+      ITEM_CONDITION: formData?.condition || 'Good',
+      ITEM_VALUE: formData?.value || '',
+
+      // Money
+      AMOUNT: formData?.amount || '',
+      INTEREST_RATE: formData?.interestRate || '0',
+      PAYMENT_TERMS: formData?.paymentTerms || '',
+
+      // Vehicle specific
+      VEHICLE_MODEL: formData?.model || '',
+      VEHICLE_PLATE: formData?.plate || '',
+      FUEL: formData?.fuel || '',
+
+      // Additional
+      TERMS: formData?.terms || '',
+      NOTES: formData?.notes || '',
+
+      // Spread form data for any template-specific fields
+      ...formData,
+    }
+  }
+
+  // Prepare contract when moving from Step 2 (Details) to Step 3 (Review)
+  const prepareContract = async () => {
+    if (!selectedTemplate?.id) return false
+
+    setIsPreparing(true)
+    console.log('📋 Preparing contract for template:', selectedTemplate.id)
+
+    try {
+      const placeholders = buildPlaceholders()
+
+      const response = await fetch(`${BACKEND_URL}/prepare_contract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_name: selectedTemplate.id,
+          placeholders: placeholders,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success && result.prepare_id) {
+        console.log('✅ Contract prepared with ID:', result.prepare_id)
+        setPrepareId(result.prepare_id)
+        return true
+      } else {
+        console.error('❌ Failed to prepare contract:', result.error || result.message)
+        return false
+      }
+    } catch (err) {
+      console.error('❌ Error preparing contract:', err)
+      return false
+    } finally {
+      setIsPreparing(false)
+    }
+  }
+
+  const handleNext = async () => {
     if (currentStep < steps.length - 1) {
+      // When moving from Step 2 (Details) to Step 3 (Review), prepare the contract
+      if (currentStep === 2) {
+        const prepared = await prepareContract()
+        if (!prepared) {
+          console.warn('⚠️ Contract preparation failed, but continuing...')
+        }
+      }
       setCurrentStep(prev => prev + 1)
     }
   }
@@ -274,6 +366,64 @@ export default function CreateContractPage() {
     if (!creatorSignature || !currentUser) return
 
     try {
+      // If we have a prepareId, use the backend to finalize the contract
+      if (prepareId) {
+        console.log('📝 Finalizing contract via backend...')
+
+        const response = await fetch(`${BACKEND_URL}/create_contract`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prepare_id: prepareId,
+            user_id: currentUser.id,
+            acceptee_id: formData.accepteeId,
+            contract_name: formData.name || selectedTemplate?.name || 'Untitled Contract',
+            contract_topic: formData.topic || selectedTemplate?.description || '',
+            template_type: selectedTemplate?.id,
+            form_data: { ...formData },
+            creator_signature: creatorSignature,
+            creator_name: currentUser.name || currentUser.fullName || '',
+            creator_ic: currentUser.ic || currentUser.icNumber || '',
+            creator_nfc_verified: nfcData ? true : false,
+            creator_face_verified: faceVerified,
+            due_date: formData.dueDate || null,
+          }),
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          console.log('✅ Contract created:', result.contract_id)
+
+          // Transform to match frontend contract structure
+          const createdContract = {
+            id: result.contract_id,
+            name: formData.name || selectedTemplate?.name || 'Untitled Contract',
+            topic: formData.topic || selectedTemplate?.description || '',
+            userId: currentUser.id,
+            accepteeId: formData.accepteeId,
+            status: 'Pending',
+            templateType: selectedTemplate?.id,
+            formData: { ...formData },
+            creatorSignature: creatorSignature,
+            pdfUrl: result.pdf_url,
+            signatureDate: new Date(),
+            creatorNfcVerified: nfcData ? true : false,
+            creatorFaceVerified: faceVerified,
+          }
+
+          // Navigate to contract created page
+          navigate('/contract-created', { state: { contract: createdContract } })
+          return
+        } else {
+          console.error('❌ Backend contract creation failed:', result.error)
+          // Fall through to local creation
+        }
+      }
+
+      // Fallback: Use local contract creation if backend fails or no prepareId
+      console.log('⚠️ Using fallback local contract creation...')
+
       const newContract = {
         name: formData.name || selectedTemplate?.name || 'Untitled Contract',
         topic: formData.topic || selectedTemplate?.description || '',
@@ -283,19 +433,17 @@ export default function CreateContractPage() {
         dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         templateType: selectedTemplate?.id,
         formData: { ...formData },
-        creatorSignature, // Will be updated after upload
+        creatorSignature,
         accepteeSignature: null,
         signatureDate: new Date(),
-        // Store verification data
         creatorNfcVerified: nfcData ? true : false,
         creatorFaceVerified: faceVerified,
       }
 
-      // Create contract first to get the contract ID
       const createdContract = await addContract(newContract)
       const contractId = createdContract.id
 
-      // Now upload signature with the actual contract ID
+      // Upload signature
       try {
         const base64Data = creatorSignature.split(',')[1] || creatorSignature
         const byteCharacters = atob(base64Data)
@@ -315,21 +463,18 @@ export default function CreateContractPage() {
         )
 
         if (!uploadError && uploadData) {
-          // Update contract with signature URL
           await updateContract(contractId, {
             creatorSignature: uploadData.url
           })
         }
       } catch (uploadError) {
         console.error('Error uploading signature:', uploadError)
-        // Contract is still created, signature just not uploaded to storage
       }
 
-      // Navigate to contract created page with the contract
       navigate('/contract-created', { state: { contract: createdContract } })
     } catch (error) {
       console.error('Error creating contract:', error)
-      // Fallback: create contract without uploading signature
+      // Last resort fallback
       const newContract = {
         name: formData.name || selectedTemplate?.name || 'Untitled Contract',
         topic: formData.topic || selectedTemplate?.description || '',
@@ -650,15 +795,15 @@ export default function CreateContractPage() {
           <div className="bg-gray-50 rounded-xl p-3">
             <p className="text-xs text-body/50 mb-1">Borrower/Buyer/Provider</p>
             <div className="flex items-center gap-2">
-              {formData.accepteeId && users[formData.accepteeId] ? (
+              {formData.accepteeId && (availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId]) ? (
                 <>
                   <img
-                    src={users[formData.accepteeId].avatar}
-                    alt={users[formData.accepteeId].name}
+                    src={(availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId])?.avatar}
+                    alt={(availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId])?.name}
                     className="w-8 h-8 rounded-lg object-cover"
                   />
                   <p className="font-medium text-header text-sm">
-                    {users[formData.accepteeId].name}
+                    {(availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId])?.name}
                   </p>
                 </>
               ) : (
@@ -673,10 +818,11 @@ export default function CreateContractPage() {
           <Button
             onClick={() => setShowPdfPreview(true)}
             variant="outline"
-            icon={Eye}
-            className="w-full"
+            icon={isPreparing ? Loader2 : Eye}
+            className={`w-full ${isPreparing ? 'animate-pulse' : ''}`}
+            disabled={isPreparing}
           >
-            Preview Contract (PDF)
+            {isPreparing ? 'Generating PDF...' : 'Preview Contract (PDF)'}
           </Button>
         </div>
 
@@ -734,8 +880,8 @@ export default function CreateContractPage() {
         creator={currentUser}
         acceptee={availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId] || null}
         title={`Preview: ${formData.name || selectedTemplate?.name}`}
-        preGeneratedPdfUrl={generatedPdfUrl}
-        isLoading={isGeneratingPdf}
+        prepareId={prepareId}
+        isPreparing={isPreparing}
       />
     </motion.div>
   )
@@ -986,15 +1132,16 @@ export default function CreateContractPage() {
           {currentStep >= 2 && currentStep <= 3 && (
             <Button
               onClick={handleNext}
-              icon={ArrowRight}
+              icon={isPreparing ? Loader2 : ArrowRight}
               iconPosition="right"
-              className="flex-1"
+              className={`flex-1 ${isPreparing ? 'animate-pulse' : ''}`}
               disabled={
+                isPreparing ||
                 (currentStep === 2 && (!formData.name || !formData.accepteeId)) ||
                 (currentStep === 3 && !hasConsented)
               }
             >
-              {currentStep === 3 ? (hasConsented ? 'Start Verification' : 'Please consent above') : 'Next'}
+              {isPreparing ? 'Generating PDF...' : currentStep === 3 ? (hasConsented ? 'Start Verification' : 'Please consent above') : 'Next'}
             </Button>
           )}
 

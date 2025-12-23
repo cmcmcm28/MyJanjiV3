@@ -8,6 +8,7 @@ export default function LiveFaceVerification({
   onVerified,
   onError,
   interval = 1000, // Check every 1 second
+  faceEmbedding = null, // Stored face embedding from Supabase
 }) {
   const webcamRef = useRef(null)
   const [isScanning, setIsScanning] = useState(false)
@@ -23,7 +24,15 @@ export default function LiveFaceVerification({
       const imageSrc = webcamRef.current.getScreenshot()
       if (!imageSrc) return
 
-      const result = await faceAuthService.verifyFrame(imageSrc)
+      // Use verifyLogin with stored embedding if provided (compares with database)
+      // Otherwise fallback to verifyFrame (legacy behavior)
+      let result
+      if (faceEmbedding) {
+        result = await faceAuthService.verifyLogin(imageSrc, faceEmbedding)
+      } else {
+        console.warn('⚠️ No face embedding provided, using legacy verifyFrame')
+        result = await faceAuthService.verifyFrame(imageSrc)
+      }
 
       if (result.success) {
         setIsVerified(true)
@@ -62,7 +71,7 @@ export default function LiveFaceVerification({
         score: null,
       })
     }
-  }, [isVerified, isScanning, onVerified, onError])
+  }, [isVerified, isScanning, onVerified, onError, faceEmbedding])
 
   useEffect(() => {
     if (isScanning && !isVerified) {
@@ -140,15 +149,14 @@ export default function LiveFaceVerification({
         {/* Face Guide Overlay */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div
-            className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${
-              isVerified
+            className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${isVerified
                 ? 'border-green-500'
                 : verificationStatus?.success === false && verificationStatus?.message?.includes('mismatch')
-                ? 'border-red-500'
-                : verificationStatus?.message?.includes('No face')
-                ? 'border-yellow-500'
-                : 'border-white/50'
-            }`}
+                  ? 'border-red-500'
+                  : verificationStatus?.message?.includes('No face')
+                    ? 'border-yellow-500'
+                    : 'border-white/50'
+              }`}
           />
         </div>
 
@@ -205,13 +213,12 @@ export default function LiveFaceVerification({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className={`w-full max-w-sm p-4 rounded-xl mb-4 ${
-              verificationStatus?.success === false && verificationStatus?.message?.includes('mismatch')
+            className={`w-full max-w-sm p-4 rounded-xl mb-4 ${verificationStatus?.success === false && verificationStatus?.message?.includes('mismatch')
                 ? 'bg-red-50 border border-red-200'
                 : verificationStatus?.message?.includes('No face')
-                ? 'bg-yellow-50 border border-yellow-200'
-                : 'bg-blue-50 border border-blue-200'
-            }`}
+                  ? 'bg-yellow-50 border border-yellow-200'
+                  : 'bg-blue-50 border border-blue-200'
+              }`}
           >
             <div className="flex items-center gap-2 justify-center">
               {verificationStatus?.success === false && verificationStatus?.message?.includes('mismatch') ? (

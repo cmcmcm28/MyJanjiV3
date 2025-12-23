@@ -118,9 +118,9 @@ export default function SignContractPage() {
 
   const handleConfirmDecline = () => {
     if (!contract) return
-    
+
     declineContract(contract.id, currentUser.id, declineReason || null)
-    
+
     // Show success and navigate
     setTimeout(() => {
       navigate('/dashboard')
@@ -165,8 +165,8 @@ export default function SignContractPage() {
                     ${currentStep > step.id
                       ? 'bg-status-ongoing text-white'
                       : currentStep === step.id
-                      ? 'gradient-primary text-white'
-                      : 'bg-gray-200 text-body/40'
+                        ? 'gradient-primary text-white'
+                        : 'bg-gray-200 text-body/40'
                     }
                   `}
                 >
@@ -182,9 +182,8 @@ export default function SignContractPage() {
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`w-8 h-0.5 mx-1 mt-[-18px] flex-shrink-0 ${
-                    currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
-                  }`}
+                  className={`w-8 h-0.5 mx-1 mt-[-18px] flex-shrink-0 ${currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
+                    }`}
                 />
               )}
             </div>
@@ -243,6 +242,7 @@ export default function SignContractPage() {
                   onVerified={handleFaceVerified}
                   onError={handleFaceError}
                   interval={1000}
+                  faceEmbedding={currentUser?.faceEmbedding}
                 />
 
                 {isFaceVerified && (

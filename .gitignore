@@ -20,6 +20,15 @@ Face recognition/uploads/*.png
 Face recognition/uploads/*.jpeg
 Face recognition/uploads/*.jfif
 
+# Backend uploads and temp folders
+backend/uploads/*.jpg
+backend/uploads/*.png
+backend/uploads/*.jpeg
+backend/uploads/*.jfif
+backend/temp_contracts/
+backend/prepared_contracts/
+backend/temp_signatures/
+
 # Node modules
 node_modules/
 myjanji-react/node_modules/

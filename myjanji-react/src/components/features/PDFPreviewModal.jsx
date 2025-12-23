@@ -17,7 +17,10 @@ export default function PDFPreviewModal({
   formData,
   title = 'Contract Preview',
   allowDownload = false,
-  useBackend = true, // NEW: Use Python backend for preview by default
+  useBackend = true,
+  prepareId = null, // Use pre-generated contract if available
+  isPreparing = false, // Show loading if still preparing
+  directPdfUrl = null, // NEW: Direct URL to already-generated PDF (e.g., from Supabase storage)
 }) {
   const [pdfUrl, setPdfUrl] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -26,15 +29,21 @@ export default function PDFPreviewModal({
 
   useEffect(() => {
     if (isOpen) {
-      generatePreview()
+      // If we have a direct PDF URL, use it immediately
+      if (directPdfUrl) {
+        setPdfUrl(directPdfUrl)
+        setLoading(false)
+      } else {
+        generatePreview()
+      }
     }
     return () => {
-      // Cleanup URL when modal closes
-      if (pdfUrl) {
+      // Cleanup URL when modal closes (only for blob URLs, not direct URLs)
+      if (pdfUrl && pdfUrl.startsWith('blob:')) {
         URL.revokeObjectURL(pdfUrl)
       }
     }
-  }, [isOpen, contract, templateType, formData])
+  }, [isOpen, contract, templateType, formData, prepareId, directPdfUrl])
 
   const generatePreview = async () => {
     setLoading(true)
@@ -43,8 +52,13 @@ export default function PDFPreviewModal({
     try {
       let result
 
-      // Use Python backend for dynamic template preview
-      if (useBackend && templateType) {
+      // If prepareId exists, fetch the pre-generated contract
+      if (prepareId) {
+        console.log('📄 Fetching pre-generated contract:', prepareId)
+        result = await fetchPreparedContract(prepareId)
+      }
+      // Fallback: Use Python backend for dynamic template preview
+      else if (useBackend && templateType) {
         console.log('📄 Generating preview from backend for template:', templateType)
         result = await generateBackendPreview()
       } else if (contract) {
@@ -74,7 +88,29 @@ export default function PDFPreviewModal({
     }
   }
 
-  // NEW: Generate preview using Python backend (fetches from Supabase templates)
+  // NEW: Fetch pre-generated contract by prepareId
+  const fetchPreparedContract = async (prepareId) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/get_prepared_contract/${prepareId}`)
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch prepared contract: ${response.status}`)
+      }
+
+      const pdfBlob = await response.blob()
+      const url = URL.createObjectURL(pdfBlob)
+
+      console.log('✅ Pre-generated contract loaded successfully')
+      return { success: true, url }
+    } catch (err) {
+      console.error('Failed to fetch prepared contract:', err)
+      // Fallback to generating on-the-fly
+      console.log('⚠️ Falling back to on-demand generation')
+      return await generateBackendPreview()
+    }
+  }
+
+  // Generate preview using Python backend (fetches from Supabase templates)
   const generateBackendPreview = async () => {
     try {
       // Build placeholders from formData
@@ -310,7 +346,7 @@ export default function PDFPreviewModal({
                     </div>
                     <span>Generating preview...</span>
                   </div>
-                  
+
                   {/* Book Loader Styles */}
                   <style>{`
                     .book-loader {
