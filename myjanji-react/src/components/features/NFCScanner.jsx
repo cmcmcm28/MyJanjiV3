@@ -20,7 +20,7 @@ export default function NFCScanner({
   allowSkip = true,
   expectedChipId = null,
 }) {
-  const [status, setStatus] = useState('idle') // idle, scanning, success, error
+  const [status, setStatus] = useState('idle') // idle, scanning, success, error, mismatch
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState(null)
   const [scannedData, setScannedData] = useState(null)
@@ -29,56 +29,22 @@ export default function NFCScanner({
   const capturedTextRef = useRef('')
   const isScanningRef = useRef(false)
 
-  // Parse IC number and extract data
+  // Parse NFC data from the reader
+  // The raw value from the NFC reader is the chip ID (e.g., 064240461207420740)
+  // This is directly compared with the user's stored nfc_chip_id
   const parseNFCData = useCallback((rawText) => {
     // Remove any whitespace and special characters
     const cleaned = rawText.replace(/\s+/g, '').trim()
 
-    // Try to find IC number pattern (12 digits with optional dashes: YYMMDD-PB-G###)
-    const icPattern = /(\d{6}[-]?\d{2}[-]?\d{4})/
-    const icMatch = cleaned.match(icPattern)
-
-    if (!icMatch) {
+    // The cleaned raw value IS the NFC chip ID - no conversion needed
+    if (!cleaned || cleaned.length < 10) {
       return null
     }
-
-    const icNumber = icMatch[1].replace(/-/g, '')
-
-    if (icNumber.length !== 12) {
-      return null
-    }
-
-    // Parse date of birth from IC number (format: YYMMDD)
-    let dateOfBirth = null
-    try {
-      const year = parseInt(icNumber.substring(0, 2))
-      const month = parseInt(icNumber.substring(2, 4))
-      const day = parseInt(icNumber.substring(4, 6))
-      // Determine century (00-30 = 2000-2030, 31-99 = 1931-1999)
-      const fullYear = year <= 30 ? 2000 + year : 1900 + year
-      dateOfBirth = `${fullYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-    } catch (e) {
-      console.error('Error parsing date:', e)
-    }
-
-    // Extract gender from last digit (odd = male, even = female)
-    const lastDigit = parseInt(icNumber[11])
-    const gender = lastDigit % 2 === 1 ? 'M' : 'F'
-
-    // Format IC number with dashes
-    const formattedIC = `${icNumber.substring(0, 6)}-${icNumber.substring(6, 8)}-${icNumber.substring(8, 12)}`
 
     return {
       cardType: 'MyKad',
-      icNumber: formattedIC,
-      name: 'SCANNED FROM CARD', // Name would need to be read from card if available
-      address: 'SCANNED FROM CARD', // Address would need to be read from card if available
-      dateOfBirth,
-      gender,
-      citizenship: 'WARGANEGARA',
-      issueDate: null,
-      expiryDate: null,
-      chipId: `MYK${icNumber.substring(8, 12)}`,
+      // The raw NFC chip ID read from the card - this is what we compare
+      chipId: cleaned,
       timestamp: new Date().toISOString(),
     }
   }, [])
@@ -90,25 +56,39 @@ export default function NFCScanner({
     const value = e.target.value
     capturedTextRef.current = value
 
-    // Update progress based on input length (assuming IC number is 12 digits)
-    const progressValue = Math.min((value.length / 12) * 100, 95)
+    // Update progress based on input length (NFC chip ID can vary in length)
+    const progressValue = Math.min((value.length / 18) * 100, 95)
     setProgress(progressValue)
 
     // If we have enough characters, try to parse
-    if (value.length >= 12) {
+    if (value.length >= 10) {
       // Wait a bit more in case reader is still typing
       clearTimeout(scanTimeoutRef.current)
       scanTimeoutRef.current = setTimeout(() => {
         const parsedData = parseNFCData(value)
 
         if (parsedData) {
-          // Validate against expected chip ID if provided
-          if (expectedChipId && parsedData.chipId !== expectedChipId) {
-            isScanningRef.current = false
-            setStatus('error')
-            setErrorMessage(`Card mismatch! Expected: ${expectedChipId}, Scanned: ${parsedData.chipId}`)
-            onError?.({ message: 'Card mismatch' })
-            return
+          // Get the scanned NFC chip ID from the card
+          const scannedChipId = parsedData.chipId
+
+          // Validate against expected chip ID if provided (user's stored nfc_chip_id)
+          if (expectedChipId) {
+            // Compare the scanned chip ID with the user's stored nfc_chip_id
+            if (scannedChipId !== expectedChipId) {
+              isScanningRef.current = false
+              setScannedData(parsedData)
+              setStatus('mismatch')
+              setErrorMessage(`NFC Chip ID mismatch! This card does not match your registered MyKad. Please use the correct card.`)
+              onError?.({
+                message: 'Card mismatch',
+                expected: expectedChipId,
+                scanned: scannedChipId
+              })
+              return
+            }
+          } else {
+            // No expected chip ID stored - this is user's first time or chip ID not registered
+            console.log('No expected chip ID provided. Scanned chip ID:', scannedChipId)
           }
 
           isScanningRef.current = false
@@ -121,7 +101,7 @@ export default function NFCScanner({
             inputRef.current.value = ''
           }
 
-          // Call success callback
+          // Call success callback with the scanned data
           setTimeout(() => {
             onSuccess?.(parsedData)
           }, 1000)
@@ -133,7 +113,7 @@ export default function NFCScanner({
         }
       }, 500) // Wait 500ms after last character
     }
-  }, [status, parseNFCData, onSuccess, onError])
+  }, [status, parseNFCData, onSuccess, onError, expectedChipId])
 
   // Start scanning - focus hidden input to capture keyboard input
   const startScanning = useCallback(() => {
@@ -155,7 +135,7 @@ export default function NFCScanner({
     // Set timeout in case no input is received
     clearTimeout(scanTimeoutRef.current)
     scanTimeoutRef.current = setTimeout(() => {
-      if (isScanningRef.current && capturedTextRef.current.length < 12) {
+      if (isScanningRef.current && capturedTextRef.current.length < 10) {
         isScanningRef.current = false
         setStatus('error')
         setErrorMessage('No card detected. Please place your MyKad on the reader and try again.')
@@ -252,13 +232,13 @@ export default function NFCScanner({
             className={`
               w-32 h-32 rounded-full flex items-center justify-center
               ${status === 'success' ? 'bg-status-ongoing' :
-                status === 'error' ? 'bg-status-breached' :
+                status === 'error' || status === 'mismatch' ? 'bg-status-breached' :
                   'gradient-primary'}
             `}
           >
             {status === 'success' ? (
               <CheckCircle className="h-16 w-16 text-white" />
-            ) : status === 'error' ? (
+            ) : status === 'error' || status === 'mismatch' ? (
               <AlertCircle className="h-16 w-16 text-white" />
             ) : status === 'scanning' ? (
               <Wifi className="h-16 w-16 text-white animate-pulse" />
@@ -357,20 +337,12 @@ export default function NFCScanner({
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
               <div className="flex items-center gap-2 text-green-700 mb-3">
                 <CheckCircle className="h-5 w-5" />
-                <span className="font-semibold">MyKad Verified!</span>
+                <span className="font-semibold">NFC Card Verified!</span>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-body/60">Name</span>
-                  <span className="font-medium text-header">{scannedData.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-body/60">IC Number</span>
-                  <span className="font-medium text-header">{scannedData.icNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-body/60">Chip ID</span>
-                  <span className="font-mono text-xs text-body/50">{scannedData.chipId}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-body/60">NFC Chip ID</span>
+                  <span className="font-mono text-xs text-green-700 bg-green-100 px-2 py-1 rounded">{scannedData.chipId}</span>
                 </div>
               </div>
             </div>
@@ -396,6 +368,44 @@ export default function NFCScanner({
             </div>
             <Button onClick={handleRetry} variant="outline">
               Try Again
+            </Button>
+          </motion.div>
+        )}
+
+        {status === 'mismatch' && (
+          <motion.div
+            key="mismatch"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="w-full max-w-sm text-center"
+          >
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-2 text-red-700 mb-3">
+                <AlertCircle className="h-5 w-5" />
+                <span className="font-semibold">Card Verification Failed</span>
+              </div>
+              <p className="text-sm text-red-600 mb-3">{errorMessage}</p>
+              {scannedData && (
+                <div className="text-left space-y-2 text-xs border-t border-red-200 pt-3 mt-3">
+                  <div className="text-red-600">
+                    <span className="text-red-500 font-medium block mb-1">Scanned NFC Chip ID:</span>
+                    <span className="font-mono bg-red-100 px-2 py-1 rounded block break-all">{scannedData.chipId}</span>
+                  </div>
+                  {expectedChipId && (
+                    <div className="text-red-600 pt-2 border-t border-red-200">
+                      <span className="text-red-500 font-medium block mb-1">Your Registered Chip ID:</span>
+                      <span className="font-mono bg-red-100 px-2 py-1 rounded block break-all">{expectedChipId}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-body/60 mb-4">
+              Please scan the MyKad that is registered to your account.
+            </p>
+            <Button onClick={handleRetry} variant="outline" icon={Nfc}>
+              Scan Again
             </Button>
           </motion.div>
         )}

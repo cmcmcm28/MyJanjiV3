@@ -162,6 +162,12 @@ export default function CreateContractPage() {
     }, 1500)
   }
 
+  const handleNFCError = (error) => {
+    console.error('NFC verification failed:', error)
+    // Keep user on NFC step to retry - the NFCScanner component handles the UI
+    setNfcData(null)
+  }
+
   const handleNFCSkip = () => {
     // For demo: skip NFC and go to face verification
     setNfcData({ skipped: true, timestamp: new Date().toISOString() })
@@ -175,7 +181,23 @@ export default function CreateContractPage() {
     const imageSrc = webcamRef.current.getScreenshot()
     if (!imageSrc) return
 
-    const result = await faceAuthService.verifyFrame(imageSrc)
+    // Use verifyLogin to compare with stored face embedding from Supabase
+    // This matches the LoginPage logic exactly
+    const storedEmbedding = currentUser?.faceEmbedding
+
+    if (!storedEmbedding) {
+      console.warn('⚠️ No stored face embedding found for user.')
+      setScanResult({ success: false, message: 'No face registered for this user' })
+      return
+    }
+
+    // Call verifyLogin with stored embedding (same as LoginPage)
+    const result = await faceAuthService.verifyLogin(imageSrc, storedEmbedding)
+
+    // Update score display
+    if (result.score !== undefined && result.score !== null) {
+      console.log('📊 Face match score:', result.score)
+    }
 
     if (result.success) {
       setIsScanning(false)
@@ -191,7 +213,7 @@ export default function CreateContractPage() {
     } else if (result.noFace) {
       setScanResult({ success: false, message: 'No face detected' })
     }
-  }, [isScanning])
+  }, [isScanning, currentUser?.faceEmbedding])
 
   // Fetch categories from Supabase on mount
   useEffect(() => {
@@ -727,6 +749,7 @@ export default function CreateContractPage() {
       <Card padding="lg">
         <NFCScanner
           onSuccess={handleNFCSuccess}
+          onError={handleNFCError}
           onSkip={handleNFCSkip}
           title="Verify Your Identity"
           description="Scan your MyKad NFC chip to verify your identity before signing"

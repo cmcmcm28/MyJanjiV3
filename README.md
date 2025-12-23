@@ -12,7 +12,7 @@ MyJanji V3/
 │   └── package.json        # Dependencies
 ├── assets/                 # Shared assets (images, etc.)
 │   └── images/             # Logo and user avatars
-└── Face recognition/       # Python Flask backend for face recognition
+└── backend/                # Python Flask backend for face recognition
     ├── app.py              # Main Flask application
     ├── requirements.txt    # Python dependencies
     └── uploads/            # Temporary upload storage
@@ -44,9 +44,9 @@ MyJanji V3/
 
 ### Backend (Face Recognition)
 
-1. Navigate to the Face recognition folder:
+1. Navigate to the backend folder:
    ```bash
-   cd "Face recognition"
+   cd backend
    ```
 
 2. Install Python dependencies:
@@ -81,5 +81,5 @@ The backend will run on `http://localhost:5000` by default.
 - This version is separated from the Flutter/Dart implementation
 - All React-specific code is in `myjanji-react/`
 - Shared assets are in `assets/`
-- Face recognition backend is in `Face recognition/`
+- Face recognition backend is in `backend/`
 

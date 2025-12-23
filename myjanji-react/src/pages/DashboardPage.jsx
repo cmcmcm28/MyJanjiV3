@@ -350,7 +350,7 @@ export default function DashboardPage() {
                     <div>
                       <p className="font-semibold text-header">{contract.name}</p>
                       <p className="text-xs text-body/50">
-                        From: {contract.creatorName || users[contract.userId]?.name || 'Unknown'}
+                        From: {contract.creatorName || getUserById(contract.userId)?.name || 'Unknown'}
                       </p>
                     </div>
                     <Button
@@ -413,7 +413,8 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-header text-sm truncate">{contract.name}</p>
-                    <p className="text-xs text-body/50">{formatDate(contract.signatureDate)}</p>
+                    <p className="text-xs text-body/50 truncate">{contract.topic}</p>
+                    <p className="text-xs text-body/40">{formatDate(contract.signatureDate)}</p>
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-full text-white shrink-0
                     ${contract.status === 'Ongoing' ? 'bg-status-ongoing' : ''}
@@ -560,7 +561,7 @@ export default function DashboardPage() {
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Creator</p>
                 <p className="font-medium text-header text-sm">
-                  {selectedContract.creatorName || users[selectedContract.userId]?.name || 'Unknown'}
+                  {selectedContract.creatorName || getUserById(selectedContract.userId)?.name || 'Unknown'}
                 </p>
                 {selectedContract.creatorEmail && (
                   <p className="text-xs text-body/50 truncate">{selectedContract.creatorEmail}</p>
@@ -569,7 +570,7 @@ export default function DashboardPage() {
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Acceptee</p>
                 <p className="font-medium text-header text-sm">
-                  {selectedContract.accepteeName || users[selectedContract.accepteeId]?.name || 'Unknown'}
+                  {selectedContract.accepteeName || getUserById(selectedContract.accepteeId)?.name || 'Unknown'}
                 </p>
                 {selectedContract.accepteeEmail && (
                   <p className="text-xs text-body/50 truncate">{selectedContract.accepteeEmail}</p>

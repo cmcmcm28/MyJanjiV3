@@ -24,14 +24,14 @@ export const contractService = {
         `)
         .eq('is_active', true)
         .order('display_order')
-      
+
       if (error && error.code === 'PGRST116') {
         // Table doesn't exist, return null (will use dummy data)
         return { data: null, error: null }
       }
-      
+
       if (error) return { data: null, error }
-      
+
       // Transform to match frontend structure
       if (data) {
         const transformed = data.map(cat => ({
@@ -52,7 +52,7 @@ export const contractService = {
         }))
         return { data: transformed, error: null }
       }
-      
+
       return { data: null, error: null }
     } catch (error) {
       console.error('Get categories error:', error)
@@ -83,11 +83,11 @@ export const contractService = {
         .eq('template_id', templateId)
         .eq('is_active', true)
         .single()
-      
+
       if (error && error.code === 'PGRST116') {
         return { data: null, error: null }
       }
-      
+
       return { data, error }
     } catch (error) {
       console.error('Get template error:', error)
@@ -103,7 +103,7 @@ export const contractService = {
     try {
       // Generate contract number if not provided
       const contractNumber = contractData.contract_id || `CNT-${Date.now().toString().slice(-6)}`
-      
+
       const { data, error } = await supabase
         .from('contracts')
         .insert({
@@ -124,7 +124,7 @@ export const contractService = {
         })
         .select()
         .single()
-      
+
       return { data, error }
     } catch (error) {
       console.error('Create contract error:', error)
@@ -147,9 +147,9 @@ export const contractService = {
         `)
         .or(`created_user_id.eq.${userId},acceptee_user_id.eq.${userId}`)
         .order('created_at', { ascending: false })
-      
+
       if (error) return { data: null, error }
-      
+
       // Transform to match frontend structure with creator/acceptee details
       const transformed = (data || []).map(contract => ({
         id: contract.contract_id,
@@ -159,10 +159,10 @@ export const contractService = {
         userId: contract.created_user_id,
         accepteeId: contract.acceptee_user_id,
         // Include creator and acceptee user details
-        creatorName: contract.creator?.name || 'Unknown',
+        creatorName: contract.creator?.name || null,
         creatorEmail: contract.creator?.email || '',
         creatorPhone: contract.creator?.phone || '',
-        accepteeName: contract.acceptee?.name || 'Unknown',
+        accepteeName: contract.acceptee?.name || null,
         accepteeEmail: contract.acceptee?.email || '',
         accepteePhone: contract.acceptee?.phone || '',
         signatureDate: contract.created_at ? new Date(contract.created_at) : new Date(),
@@ -179,7 +179,7 @@ export const contractService = {
         declineReason: contract.decline_reason,
         pdfUrl: contract.pdf_url,
       }))
-      
+
       return { data: transformed, error: null }
     } catch (error) {
       console.error('Get user contracts error:', error)
@@ -198,9 +198,9 @@ export const contractService = {
         .select('*')
         .eq('contract_id', contractId)
         .single()
-      
+
       if (error) return { data: null, error }
-      
+
       // Transform to match frontend structure
       const transformed = {
         id: data.contract_id,
@@ -223,7 +223,7 @@ export const contractService = {
         declineReason: data.decline_reason,
         pdfUrl: data.pdf_url,
       }
-      
+
       return { data: transformed, error: null }
     } catch (error) {
       console.error('Get contract error:', error)
@@ -239,7 +239,7 @@ export const contractService = {
     try {
       // Transform frontend structure to database structure
       const dbUpdates = {}
-      
+
       if (updates.name !== undefined) dbUpdates.contract_name = updates.name
       if (updates.topic !== undefined) dbUpdates.contract_topic = updates.topic
       if (updates.status !== undefined) dbUpdates.status = updates.status
@@ -254,25 +254,25 @@ export const contractService = {
       if (updates.declinedBy !== undefined) dbUpdates.declined_by = updates.declinedBy
       if (updates.declineReason !== undefined) dbUpdates.decline_reason = updates.declineReason
       if (updates.pdfUrl !== undefined) dbUpdates.pdf_url = updates.pdfUrl
-      
+
       // Handle direct database field names
       Object.keys(updates).forEach(key => {
-        if (!['name', 'topic', 'status', 'formData', 'dueDate', 'creatorSignature', 'accepteeSignature', 
-              'creatorNfcVerified', 'creatorFaceVerified', 'accepteeNfcVerified', 'accepteeFaceVerified',
-              'declinedBy', 'declineReason', 'pdfUrl'].includes(key)) {
+        if (!['name', 'topic', 'status', 'formData', 'dueDate', 'creatorSignature', 'accepteeSignature',
+          'creatorNfcVerified', 'creatorFaceVerified', 'accepteeNfcVerified', 'accepteeFaceVerified',
+          'declinedBy', 'declineReason', 'pdfUrl'].includes(key)) {
           dbUpdates[key] = updates[key]
         }
       })
-      
+
       const { data, error } = await supabase
         .from('contracts')
         .update(dbUpdates)
         .eq('contract_id', contractId)
         .select()
         .single()
-      
+
       if (error) return { data: null, error }
-      
+
       // Transform response
       const transformed = {
         id: data.contract_id,
@@ -288,7 +288,7 @@ export const contractService = {
         creatorSignature: data.creator_signature_url,
         accepteeSignature: data.acceptee_signature_url,
       }
-      
+
       return { data: transformed, error: null }
     } catch (error) {
       console.error('Update contract error:', error)
@@ -308,9 +308,9 @@ export const contractService = {
         .eq('acceptee_user_id', userId)
         .eq('status', 'Pending')
         .order('created_at', { ascending: false })
-      
+
       if (error) return { data: null, error }
-      
+
       // Transform to match frontend structure
       const transformed = (data || []).map(contract => ({
         id: contract.contract_id,
@@ -324,7 +324,7 @@ export const contractService = {
         templateType: contract.template_type,
         formData: contract.form_data,
       }))
-      
+
       return { data: transformed, error: null }
     } catch (error) {
       console.error('Get pending contracts error:', error)

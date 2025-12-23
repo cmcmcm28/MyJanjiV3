@@ -13,10 +13,10 @@ import {
   QrCode,
   Download,
   Eye,
+  RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContracts } from '../context/ContractContext'
-import { users } from '../utils/dummyData'
 import Header from '../components/layout/Header'
 import BottomNav from '../components/layout/BottomNav'
 import ContractList from '../components/contracts/ContractList'
@@ -36,13 +36,22 @@ const statusTabs = [
 
 export default function ContractsPage() {
   const navigate = useNavigate()
-  const { currentUser, isAuthenticated } = useAuth()
+  const { currentUser, isAuthenticated, availableUsers } = useAuth()
   const { contracts, getAllContractsForUser, loadUserContracts } = useContracts()
   const [activeTab, setActiveTab] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContract, setSelectedContract] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
+
+  // Helper to get user details
+  const getUserById = (userId) => {
+    if (!userId) return null
+    // Try to find in availableUsers first (from Supabase)
+    const user = availableUsers?.find(u => u.id === userId)
+    if (user) return user
+    return null
+  }
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -116,9 +125,32 @@ export default function ContractsPage() {
   }
 
   const handleDownloadPDF = async (contract) => {
-    const creator = users[contract.userId]
-    const acceptee = users[contract.accepteeId]
+    // If contract already has a PDF URL (from backend generation), open it
+    if (contract.pdfUrl) {
+      window.open(contract.pdfUrl, '_blank')
+      return
+    }
+
+    // Fallback to client-side generation
+    const creator = getUserById(contract.userId)
+    const acceptee = getUserById(contract.accepteeId)
     await pdfService.downloadContractPDF(contract, creator, acceptee)
+  }
+
+  const handleSignContract = (contract) => {
+    navigate(`/sign-contract/${contract.id}`)
+  }
+
+  const handleResendContract = (contract) => {
+    navigate('/create-contract', {
+      state: {
+        templateType: contract.templateType,
+        formData: contract.formData,
+        accepteeId: contract.accepteeId,
+        name: contract.name,
+        topic: contract.topic,
+      }
+    })
   }
 
   if (!currentUser) return null
@@ -228,6 +260,26 @@ export default function ContractsPage() {
               <span className="text-sm font-mono text-body/50">{selectedContract.id}</span>
             </div>
 
+            {/* Decline Info */}
+            {selectedContract.status === 'Declined' && selectedContract.declinedAt && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <p className="text-sm font-semibold text-red-800 mb-2">Contract Declined</p>
+                <p className="text-xs text-red-700 mb-1">
+                  Declined on {new Date(selectedContract.declinedAt).toLocaleDateString('en-MY', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+                {selectedContract.declineReason && (
+                  <div className="mt-2 pt-2 border-t border-red-200">
+                    <p className="text-xs text-red-600 font-medium mb-1">Reason:</p>
+                    <p className="text-xs text-red-700 italic">"{selectedContract.declineReason}"</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Contract Info */}
             <div>
               <h3 className="text-xl font-bold text-header">{selectedContract.name}</h3>
@@ -239,14 +291,20 @@ export default function ContractsPage() {
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Creator</p>
                 <p className="font-medium text-header text-sm">
-                  {users[selectedContract.userId]?.name || 'Unknown'}
+                  {selectedContract.creatorName || getUserById(selectedContract.userId)?.name || 'Unknown'}
                 </p>
+                {selectedContract.creatorEmail && (
+                  <p className="text-xs text-body/50 truncate">{selectedContract.creatorEmail}</p>
+                )}
               </div>
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Acceptee</p>
                 <p className="font-medium text-header text-sm">
-                  {users[selectedContract.accepteeId]?.name || 'Unknown'}
+                  {selectedContract.accepteeName || getUserById(selectedContract.accepteeId)?.name || 'Unknown'}
                 </p>
+                {selectedContract.accepteeEmail && (
+                  <p className="text-xs text-body/50 truncate">{selectedContract.accepteeEmail}</p>
+                )}
               </div>
             </div>
 
@@ -267,7 +325,16 @@ export default function ContractsPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+              {selectedContract.pdfUrl && (
+                <Button
+                  variant="outline"
+                  icon={Eye}
+                  onClick={() => window.open(selectedContract.pdfUrl, '_blank')}
+                >
+                  View PDF
+                </Button>
+              )}
               <Button
                 variant="outline"
                 icon={QrCode}
@@ -285,6 +352,26 @@ export default function ContractsPage() {
               >
                 Download PDF
               </Button>
+              {selectedContract.status === 'Pending' && selectedContract.accepteeId === currentUser.id && (
+                <Button
+                  icon={FileText}
+                  onClick={() => handleSignContract(selectedContract)}
+                >
+                  Sign Contract
+                </Button>
+              )}
+              {selectedContract.status === 'Declined' && selectedContract.userId === currentUser.id && (
+                <Button
+                  variant="outline"
+                  icon={RefreshCw}
+                  onClick={() => {
+                    setShowDetailsModal(false)
+                    handleResendContract(selectedContract)
+                  }}
+                >
+                  Resend Contract
+                </Button>
+              )}
             </div>
           </div>
         )}

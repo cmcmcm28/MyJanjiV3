@@ -23,6 +23,7 @@ export function AuthProvider({ children }) {
             name: user.name,
             ic: user.user_id || '', // Use user_id as IC
             nfcChipId: user.nfc_chip_id || null,
+            faceEmbedding: user.face_embedding || null,
             avatar: user.avatar || '/images/default-avatar.png',
             email: user.email || '',
             phone: user.phone || '',
@@ -54,6 +55,7 @@ export function AuthProvider({ children }) {
           name: supabaseUser.name,
           ic: supabaseUser.user_id || '',
           nfcChipId: supabaseUser.nfc_chip_id || null,
+          faceEmbedding: supabaseUser.face_embedding || null,
           avatar: supabaseUser.avatar || '/images/default-avatar.png',
           email: supabaseUser.email || '',
           phone: supabaseUser.phone || '',
