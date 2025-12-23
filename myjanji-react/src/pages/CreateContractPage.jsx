@@ -116,6 +116,8 @@ export default function CreateContractPage() {
 
   // PDF preview and consent states
   const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [generatedPdfUrl, setGeneratedPdfUrl] = useState(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [hasConsented, setHasConsented] = useState(false)
 
   const availableAcceptees = Object.values(users).filter(u => u.id !== currentUser?.id)
