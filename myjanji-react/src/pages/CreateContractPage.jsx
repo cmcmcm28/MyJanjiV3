@@ -72,7 +72,7 @@ export default function CreateContractPage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
-  
+
   // Dynamic categories from Supabase
   const [contractCategories, setContractCategories] = useState(fallbackCategories)
   const [loadingCategories, setLoadingCategories] = useState(true)
@@ -193,15 +193,19 @@ export default function CreateContractPage() {
 
   // Fetch categories from Supabase on mount
   useEffect(() => {
+    console.log('Component mounted, fallback categories length:', fallbackCategories?.length)
     const fetchCategories = async () => {
       setLoadingCategories(true)
       try {
+        console.log('Fetching categories from Supabase...')
         const { data, error } = await templateService.getCategories()
-        if (data && !error) {
+        console.log('Supabase response:', { data, error })
+
+        if (data && !error && data.length > 0) {
           setContractCategories(data)
           console.log('✅ Loaded categories from Supabase:', data.length)
         } else {
-          console.warn('⚠️ Using fallback categories:', error?.message)
+          console.warn('⚠️ Supabase returned empty/error, using fallback categories. Fallback length:', fallbackCategories?.length)
           setContractCategories(fallbackCategories)
         }
       } catch (err) {
@@ -337,52 +341,52 @@ export default function CreateContractPage() {
           <p className="text-body/60">Loading contract templates...</p>
         </div>
       ) : (
-      <div className="space-y-4">
-        {contractCategories.map((category) => {
-          const CategoryIcon = iconMap[category.icon] || Package
-          return (
-            <motion.button
-              key={category.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleCategorySelect(category)}
-              className={`
+        <div className="space-y-4">
+          {contractCategories.map((category) => {
+            const CategoryIcon = iconMap[category.icon] || Package
+            return (
+              <motion.button
+                key={category.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleCategorySelect(category)}
+                className={`
                 w-full text-left rounded-2xl overflow-hidden transition-all
                 ${selectedCategory?.id === category.id
-                  ? 'ring-2 ring-primary'
-                  : 'hover:shadow-lg'
-                }
+                    ? 'ring-2 ring-primary'
+                    : 'hover:shadow-lg'
+                  }
               `}
-            >
-              <div className={`bg-gradient-to-r ${category.color} p-4 text-white`}>
-                <div className="flex items-center gap-3">
-                  <div className="bg-white/20 p-2 rounded-xl">
-                    <CategoryIcon className="h-6 w-6" />
+              >
+                <div className={`bg-gradient-to-r ${category.color} p-4 text-white`}>
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/20 p-2 rounded-xl">
+                      <CategoryIcon className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg">{category.name}</h3>
+                      <p className="text-white/80 text-sm">{category.description}</p>
+                    </div>
+                    <ArrowRight className="h-5 w-5" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg">{category.name}</h3>
-                    <p className="text-white/80 text-sm">{category.description}</p>
+                </div>
+                <div className="bg-white p-3 border-x border-b border-gray-100">
+                  <div className="flex gap-2 flex-wrap">
+                    {category.templates.map((t) => {
+                      const TIcon = iconMap[t.icon] || FileText
+                      return (
+                        <span key={t.id} className="inline-flex items-center gap-1 text-xs text-body/60 bg-gray-100 px-2 py-1 rounded-full">
+                          <TIcon className="h-3 w-3" />
+                          {t.name}
+                        </span>
+                      )
+                    })}
                   </div>
-                  <ArrowRight className="h-5 w-5" />
                 </div>
-              </div>
-              <div className="bg-white p-3 border-x border-b border-gray-100">
-                <div className="flex gap-2 flex-wrap">
-                  {category.templates.map((t) => {
-                    const TIcon = iconMap[t.icon] || FileText
-                    return (
-                      <span key={t.id} className="inline-flex items-center gap-1 text-xs text-body/60 bg-gray-100 px-2 py-1 rounded-full">
-                        <TIcon className="h-3 w-3" />
-                        {t.name}
-                      </span>
-                    )
-                  })}
-                </div>
-              </div>
-            </motion.button>
-          )
-        })}
-      </div>
+              </motion.button>
+            )
+          })}
+        </div>
       )}
     </motion.div>
   )
