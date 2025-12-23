@@ -1,42 +1,67 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   FileText,
   Clock,
   CheckCircle,
   AlertTriangle,
   TrendingUp,
-  Filter,
   Search,
   QrCode,
   Download,
   Eye,
-  XCircle,
   RefreshCw,
-  CreditCard,
+  Plus,
+  Calendar,
+  MessageSquare,
+  History,
+  ChevronRight,
+  PlayCircle,
+  Car,
+  Package,
+  Receipt,
+  Banknote,
+  Briefcase,
+  ShoppingBag,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContracts } from '../context/ContractContext'
 import { users } from '../utils/dummyData'
 import Header from '../components/layout/Header'
 import BottomNav from '../components/layout/BottomNav'
-import ContractCard from '../components/contracts/ContractCard'
-import ContractList from '../components/contracts/ContractList'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import QRCodeDisplay from '../components/features/QRCodeDisplay'
 import pdfService from '../services/pdfService'
 
-// Base tabs - Declined will be added conditionally
-const baseTabs = [
-  { id: 'all', label: 'All', icon: FileText },
-  { id: 'ongoing', label: 'Ongoing', icon: TrendingUp },
-  { id: 'pending', label: 'Pending', icon: Clock },
-  { id: 'completed', label: 'Completed', icon: CheckCircle },
-  { id: 'breached', label: 'Breached', icon: AlertTriangle },
-]
+// Helper to get greeting based on time
+const getGreeting = () => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Selamat Pagi'
+  if (hour < 18) return 'Selamat Petang'
+  return 'Selamat Malam'
+}
+
+// Helper to format date nicely
+const formatDate = (date) => {
+  if (!date) return 'N/A'
+  return new Date(date).toLocaleDateString('en-MY', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+// Helper to get days until deadline
+const getDaysUntil = (date) => {
+  if (!date) return null
+  const now = new Date()
+  const due = new Date(date)
+  const diff = Math.ceil((due - now) / (1000 * 60 * 60 * 24))
+  return diff
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -47,7 +72,6 @@ export default function DashboardPage() {
   const [selectedContract, setSelectedContract] = useState(null)
   const [showQRModal, setShowQRModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
-  const [activeFilter, setActiveFilter] = useState(null)
 
   // Helper to get user details
   const getUserById = (userId) => {
@@ -85,67 +109,43 @@ export default function DashboardPage() {
     return getPendingContractsForUser(currentUser.id)
   }, [currentUser, getPendingContractsForUser, contracts])
 
-  // Filter contracts by tab, button filter, and search
-  const filteredContracts = useMemo(() => {
-    let filtered = userContracts
-
-    // Filter by button click (Active, Pending, Issues)
-    if (activeFilter) {
-      const filterMap = {
-        active: 'Ongoing',
-        pending: 'Pending',
-        issues: 'Breached',
-      }
-      filtered = filtered.filter((c) => c.status === filterMap[activeFilter])
-    } else {
-      // Filter by tab if no button filter is active
-      if (activeTab !== 'all') {
-        const statusMap = {
-          ongoing: 'Ongoing',
-          pending: 'Pending',
-          completed: 'Completed',
-          breached: 'Breached',
-          declined: 'Declined',
-        }
-        filtered = filtered.filter((c) => c.status === statusMap[activeTab])
-      }
-    }
-
-    // Filter by search
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (c) =>
-          c.name.toLowerCase().includes(query) ||
-          c.topic.toLowerCase().includes(query) ||
-          c.id.toLowerCase().includes(query)
-      )
-    }
-
-    return filtered
-  }, [userContracts, activeTab, activeFilter, searchQuery])
-
   // Calculate stats for current user
   const userStats = useMemo(() => {
-    const total = userContracts.length
     const ongoing = userContracts.filter((c) => c.status === 'Ongoing').length
     const pending = userContracts.filter((c) => c.status === 'Pending').length
-    const breached = userContracts.filter((c) => c.status === 'Breached').length
-    const declined = userContracts.filter((c) => c.status === 'Declined').length
-    return { total, ongoing, pending, breached, declined }
+    const completed = userContracts.filter((c) => c.status === 'Completed').length
+    return { ongoing, pending, completed }
   }, [userContracts])
 
-  // Create dynamic tabs that include Declined only if count > 0
-  const visibleTabs = useMemo(() => {
-    const tabs = [...baseTabs]
+  // Get upcoming deadlines (contracts with due dates in the future, sorted by nearest)
+  const upcomingDeadlines = useMemo(() => {
+    const now = new Date()
+    return userContracts
+      .filter((c) => c.dueDate && new Date(c.dueDate) > now && c.status === 'Ongoing')
+      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+      .slice(0, 3)
+  }, [userContracts])
 
-    // Only add Declined tab if user has declined contracts
-    if (userStats.declined > 0) {
-      tabs.push({ id: 'declined', label: 'Declined', icon: XCircle })
-    }
+  // Get recent activity (last 5 contracts by signature date)
+  const recentActivity = useMemo(() => {
+    return [...userContracts]
+      .sort((a, b) => new Date(b.signatureDate) - new Date(a.signatureDate))
+      .slice(0, 5)
+  }, [userContracts])
 
-    return tabs
-  }, [userStats.declined])
+  // Filter contracts by search
+  const searchResults = useMemo(() => {
+    if (!searchQuery) return []
+    const query = searchQuery.toLowerCase()
+    return userContracts
+      .filter(
+        (c) =>
+          c.name?.toLowerCase().includes(query) ||
+          c.topic?.toLowerCase().includes(query) ||
+          c.id?.toLowerCase().includes(query)
+      )
+      .slice(0, 5)
+  }, [userContracts, searchQuery])
 
   const handleContractClick = (contract) => {
     setSelectedContract(contract)
@@ -175,7 +175,6 @@ export default function DashboardPage() {
   }
 
   const handleResendContract = (contract) => {
-    // Navigate to create contract with pre-filled data
     navigate('/create-contract', {
       state: {
         templateType: contract.templateType,
@@ -187,112 +186,26 @@ export default function DashboardPage() {
     })
   }
 
-  const handleFilterClick = (filterType) => {
-    // If clicking Total, clear all filters
-    if (filterType === 'total') {
-      setActiveFilter(null)
-      setActiveTab('all')
-    } else {
-      // Toggle filter - if clicking the same filter, reset to all
-      if (activeFilter === filterType) {
-        setActiveFilter(null)
-        setActiveTab('all')
-      } else {
-        setActiveFilter(filterType)
-        setActiveTab('all') // Reset tab when using button filter
-      }
-    }
-  }
-
   if (!currentUser) return null
 
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header title="MyJanji" showLogout />
 
-      {/* Generic MyKad Card */}
-      <div className="px-4 -mt-4 relative z-10">
-        <Card className="relative overflow-hidden" padding="none">
-          {/* MyKad-style card design */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4">
-            <div className="flex items-center gap-4">
-              {/* Generic card icon */}
-              <div className="w-16 h-20 bg-white rounded-lg border-2 border-blue-200 flex items-center justify-center shadow-sm">
-                <CreditCard className="h-8 w-8 text-blue-400" />
-              </div>
+      {/* 1. Greeting & Search */}
+      <div className="px-4 mt-4">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4"
+        >
+          <h1 className="text-2xl font-bold text-header">
+            {getGreeting()}, <span className="text-primary">{currentUser.name?.split(' ')[0]}</span>.
+          </h1>
+          <p className="text-body/60 text-sm mt-1">Manage your agreements efficiently</p>
+        </motion.div>
 
-              {/* User info */}
-              <div className="flex-1 min-w-0">
-                <h2 className="font-bold text-header truncate text-lg">{currentUser.name}</h2>
-                <p className="text-sm text-body/60 mt-1">IC: {currentUser.ic}</p>
-                <p className="text-xs text-body/40 mt-1">Malaysian Identity Card</p>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="px-4 mt-4 grid grid-cols-4 gap-2">
-        {[
-          { label: 'Total', value: userStats.total, color: 'bg-primary', icon: FileText, filterType: 'total' },
-          { label: 'Active', value: userStats.ongoing, color: 'bg-status-ongoing', icon: TrendingUp, filterType: 'active' },
-          { label: 'Pending', value: userStats.pending, color: 'bg-status-pending', icon: Clock, filterType: 'pending' },
-          { label: 'Issues', value: userStats.breached, color: 'bg-status-breached', icon: AlertTriangle, filterType: 'issues' },
-        ].map((stat) => (
-          <motion.div
-            key={stat.label}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleFilterClick(stat.filterType)}
-            className={`bg-surface rounded-xl p-3 card-shadow text-center cursor-pointer transition-all ${(stat.filterType === 'total' && !activeFilter) || activeFilter === stat.filterType ? 'ring-2 ring-primary' : ''
-              }`}
-          >
-            <div className={`${stat.color} w-8 h-8 rounded-lg mx-auto mb-2 flex items-center justify-center`}>
-              <stat.icon className="h-4 w-4 text-white" />
-            </div>
-            <p className="text-xl font-bold text-header">{stat.value}</p>
-            <p className="text-xs text-body/50">{stat.label}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Pending Contracts for Signing - Only show for Ultraman after contract creation */}
-      {currentUser.id === 'USER-002' && pendingForSigning.length > 0 && (
-        <div className="px-4 mt-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-header">Awaiting Your Signature</h3>
-            <span className="text-xs bg-status-pending/10 text-status-pending px-2 py-1 rounded-full font-medium">
-              {pendingForSigning.length} pending
-            </span>
-          </div>
-          <div className="space-y-2">
-            {pendingForSigning.slice(0, 2).map((contract) => (
-              <motion.div
-                key={contract.id}
-                whileHover={{ scale: 1.01 }}
-                className="bg-surface rounded-xl p-4 card-shadow border-l-4 border-status-pending"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-header">{contract.name}</p>
-                    <p className="text-xs text-body/50">From: {users[contract.userId]?.name}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleSignContract(contract)}
-                  >
-                    Sign Now
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Search Bar */}
-      <div className="px-4 mt-6">
+        {/* Search Bar */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-body/40" />
           <input
@@ -303,49 +216,293 @@ export default function DashboardPage() {
             className="w-full bg-surface rounded-xl pl-10 pr-4 py-3 text-body placeholder:text-body/40 card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
+
+        {/* Search Results Dropdown */}
+        {searchQuery && searchResults.length > 0 && (
+          <Card className="mt-2 p-2">
+            {searchResults.map((contract) => (
+              <div
+                key={contract.id}
+                onClick={() => {
+                  handleContractClick(contract)
+                  setSearchQuery('')
+                }}
+                className="p-3 hover:bg-gray-50 rounded-lg cursor-pointer flex items-center justify-between"
+              >
+                <div>
+                  <p className="font-medium text-header text-sm">{contract.name}</p>
+                  <p className="text-xs text-body/50">{contract.topic}</p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full text-white
+                  ${contract.status === 'Ongoing' ? 'bg-status-ongoing' : ''}
+                  ${contract.status === 'Pending' ? 'bg-status-pending' : ''}
+                  ${contract.status === 'Completed' ? 'bg-status-completed' : ''}
+                  ${contract.status === 'Breached' ? 'bg-status-breached' : ''}
+                `}>
+                  {contract.status}
+                </span>
+              </div>
+            ))}
+          </Card>
+        )}
+      </div >
+
+      {/* 2. Agreement Summary */}
+      < div className="px-4 mt-6" >
+        <h2 className="text-lg font-bold text-header mb-3">Agreement Summary</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/contracts?filter=ongoing')}
+            className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 cursor-pointer"
+          >
+            <TrendingUp className="h-6 w-6 text-white/80 mb-2" />
+            <p className="text-2xl font-bold text-white">{userStats.ongoing}</p>
+            <p className="text-xs text-white/80">Active</p>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/contracts?filter=pending')}
+            className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-4 cursor-pointer"
+          >
+            <Clock className="h-6 w-6 text-white/80 mb-2" />
+            <p className="text-2xl font-bold text-white">{userStats.pending}</p>
+            <p className="text-xs text-white/80">Pending</p>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/contracts?filter=completed')}
+            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 cursor-pointer"
+          >
+            <CheckCircle className="h-6 w-6 text-white/80 mb-2" />
+            <p className="text-2xl font-bold text-white">{userStats.completed}</p>
+            <p className="text-xs text-white/80">Completed</p>
+          </motion.div>
+        </div>
+      </div >
+
+      {/* 3. Upcoming Deadlines */}
+      {
+        upcomingDeadlines.length > 0 && (
+          <div className="px-4 mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-header">Upcoming Deadlines</h2>
+              <button
+                onClick={() => navigate('/contracts')}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                View All <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {upcomingDeadlines.map((contract) => {
+                const daysLeft = getDaysUntil(contract.dueDate)
+                return (
+                  <motion.div
+                    key={contract.id}
+                    whileHover={{ scale: 1.01 }}
+                    onClick={() => handleContractClick(contract)}
+                    className={`bg-surface rounded-xl p-4 card-shadow cursor-pointer border-l-4 ${daysLeft <= 3 ? 'border-red-500' : daysLeft <= 7 ? 'border-amber-500' : 'border-green-500'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-semibold text-header">{contract.name}</p>
+                        <p className="text-xs text-body/50">{contract.topic}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-bold ${daysLeft <= 3 ? 'text-red-500' : daysLeft <= 7 ? 'text-amber-500' : 'text-green-500'
+                          }`}>
+                          {daysLeft} days
+                        </p>
+                        <p className="text-xs text-body/50">{formatDate(contract.dueDate)}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
+
+      {/* Pending Contracts for Signing */}
+      {
+        pendingForSigning.length > 0 && (
+          <div className="px-4 mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-header">Awaiting Your Signature</h2>
+              <span className="text-xs bg-status-pending/10 text-status-pending px-2 py-1 rounded-full font-medium">
+                {pendingForSigning.length} pending
+              </span>
+            </div>
+            <div className="space-y-2">
+              {pendingForSigning.slice(0, 2).map((contract) => (
+                <motion.div
+                  key={contract.id}
+                  whileHover={{ scale: 1.01 }}
+                  className="bg-surface rounded-xl p-4 card-shadow border-l-4 border-status-pending"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-header">{contract.name}</p>
+                      <p className="text-xs text-body/50">
+                        From: {contract.creatorName || users[contract.userId]?.name || 'Unknown'}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleSignContract(contract)}
+                    >
+                      Sign Now
+                    </Button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      {/* 4. Recent Activity */}
+      <div className="px-4 mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-header">Recent Activity</h2>
+          <button
+            onClick={() => navigate('/contracts')}
+            className="text-sm text-primary flex items-center gap-1"
+          >
+            View All <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        {recentActivity.length > 0 ? (
+          <Card padding="none" className="divide-y divide-gray-100">
+            {recentActivity.map((contract) => {
+              // Get icon and colors based on template type/category
+              const getTemplateStyle = (templateType) => {
+                switch (templateType) {
+                  case 'VEHICLE_USE':
+                    return { Icon: Car, bgColor: 'bg-blue-100', iconColor: 'text-blue-600' }
+                  case 'ITEM_BORROW':
+                    return { Icon: Package, bgColor: 'bg-cyan-100', iconColor: 'text-cyan-600' }
+                  case 'BILL_SPLIT':
+                    return { Icon: Receipt, bgColor: 'bg-green-100', iconColor: 'text-green-600' }
+                  case 'FRIENDLY_LOAN':
+                    return { Icon: Banknote, bgColor: 'bg-emerald-100', iconColor: 'text-emerald-600' }
+                  case 'FREELANCE_JOB':
+                    return { Icon: Briefcase, bgColor: 'bg-purple-100', iconColor: 'text-purple-600' }
+                  case 'SALE_DEPOSIT':
+                    return { Icon: ShoppingBag, bgColor: 'bg-pink-100', iconColor: 'text-pink-600' }
+                  default:
+                    return { Icon: FileText, bgColor: 'bg-gray-100', iconColor: 'text-gray-600' }
+                }
+              }
+              const { Icon, bgColor, iconColor } = getTemplateStyle(contract.templateType)
+
+              return (
+                <div
+                  key={contract.id}
+                  onClick={() => handleContractClick(contract)}
+                  className="p-4 hover:bg-gray-50 cursor-pointer flex items-center gap-3"
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${bgColor}`}>
+                    <Icon className={`h-5 w-5 ${iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-header text-sm truncate">{contract.name}</p>
+                    <p className="text-xs text-body/50">{formatDate(contract.signatureDate)}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full text-white shrink-0
+                    ${contract.status === 'Ongoing' ? 'bg-status-ongoing' : ''}
+                    ${contract.status === 'Pending' ? 'bg-status-pending' : ''}
+                    ${contract.status === 'Completed' ? 'bg-status-completed' : ''}
+                    ${contract.status === 'Breached' ? 'bg-status-breached' : ''}
+                  `}>
+                    {contract.status}
+                  </span>
+                </div>
+              )
+            })}
+          </Card>
+        ) : (
+          <Card className="text-center py-8">
+            <History className="h-12 w-12 text-body/30 mx-auto mb-3" />
+            <p className="text-body/50">No recent activity</p>
+          </Card>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="px-4 mt-4 overflow-x-auto">
-        <div className="flex gap-2 min-w-max pb-2">
-          {visibleTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id)
-                setActiveFilter(null) // Reset button filter when clicking tab
-              }}
-              className={`
-                flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all
-                ${activeTab === tab.id && !activeFilter
-                  ? 'gradient-primary text-white'
-                  : 'bg-surface text-body/60 hover:text-body card-shadow'
-                }
-              `}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-              {tab.id === 'declined' && userStats.declined > 0 && (
-                <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
-                  {userStats.declined}
-                </span>
-              )}
-            </button>
-          ))}
+      {/* 5. Quick Action Shortcuts */}
+      <div className="px-4 mt-6">
+        <h2 className="text-lg font-bold text-header mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/create-contract')}
+            className="bg-gradient-to-br from-primary to-primary/80 rounded-xl p-4 cursor-pointer"
+          >
+            <Plus className="h-8 w-8 text-white mb-2" />
+            <p className="font-bold text-white">New Contract</p>
+            <p className="text-xs text-white/70">Create a new agreement</p>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/contracts')}
+            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
+          >
+            <Search className="h-8 w-8 text-primary mb-2" />
+            <p className="font-bold text-header">Search Contract</p>
+            <p className="text-xs text-body/50">Find existing agreements</p>
+          </motion.div>
         </div>
       </div>
 
-      {/* Contract List */}
-      <div className="px-4 mt-4">
-        <ContractList
-          contracts={filteredContracts}
-          onContractClick={handleContractClick}
-          emptyMessage={
-            searchQuery
-              ? `No contracts matching "${searchQuery}"`
-              : `No ${activeTab === 'all' ? '' : activeTab} contracts`
-          }
-        />
+      {/* 6. Discussion & Meeting */}
+      <div className="px-4 mt-6">
+        <h2 className="text-lg font-bold text-header mb-3">Discussion & Meeting</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
+          >
+            <MessageSquare className="h-6 w-6 text-purple-500 mb-2" />
+            <p className="font-semibold text-header text-sm">Upcoming</p>
+            <p className="text-xs text-body/50">0 discussions</p>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
+          >
+            <Calendar className="h-6 w-6 text-blue-500 mb-2" />
+            <p className="font-semibold text-header text-sm">Schedule</p>
+            <p className="text-xs text-body/50">Plan a meeting</p>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
+          >
+            <History className="h-6 w-6 text-gray-500 mb-2" />
+            <p className="font-semibold text-header text-sm">Past Meetings</p>
+            <p className="text-xs text-body/50">View history</p>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 cursor-pointer"
+          >
+            <PlayCircle className="h-6 w-6 text-white mb-2" />
+            <p className="font-semibold text-white text-sm">Instant Meet</p>
+            <p className="text-xs text-white/70">Start now</p>
+          </motion.div>
+        </div>
       </div>
 
       {/* Contract Details Modal */}
@@ -403,14 +560,20 @@ export default function DashboardPage() {
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Creator</p>
                 <p className="font-medium text-header text-sm">
-                  {users[selectedContract.userId]?.name || 'Unknown'}
+                  {selectedContract.creatorName || users[selectedContract.userId]?.name || 'Unknown'}
                 </p>
+                {selectedContract.creatorEmail && (
+                  <p className="text-xs text-body/50 truncate">{selectedContract.creatorEmail}</p>
+                )}
               </div>
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Acceptee</p>
                 <p className="font-medium text-header text-sm">
-                  {users[selectedContract.accepteeId]?.name || 'Unknown'}
+                  {selectedContract.accepteeName || users[selectedContract.accepteeId]?.name || 'Unknown'}
                 </p>
+                {selectedContract.accepteeEmail && (
+                  <p className="text-xs text-body/50 truncate">{selectedContract.accepteeEmail}</p>
+                )}
               </div>
             </div>
 
@@ -431,7 +594,16 @@ export default function DashboardPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+              {selectedContract.pdfUrl && (
+                <Button
+                  variant="outline"
+                  icon={Eye}
+                  onClick={() => window.open(selectedContract.pdfUrl, '_blank')}
+                >
+                  View PDF
+                </Button>
+              )}
               <Button
                 variant="outline"
                 icon={QrCode}
@@ -490,7 +662,7 @@ export default function DashboardPage() {
       </Modal>
 
       <BottomNav />
-    </div>
+    </div >
   )
 }
 

@@ -4,6 +4,14 @@ import Input, { Textarea, Select } from '../ui/Input'
 import Button from '../ui/Button'
 import { FileText, DollarSign, Calendar, MapPin, Clock } from 'lucide-react'
 
+import LoanContractForm from './templates/LoanContractForm'
+import VehicleLoanContractForm from './templates/VehicleLoanContractForm'
+import RentalContractForm from './templates/RentalContractForm'
+import ServiceContractForm from './templates/ServiceContractForm'
+import FreelanceContractForm from './templates/FreelanceContractForm'
+import DepositContractForm from './templates/DepositContractForm'
+import CustomContractForm from './templates/CustomContractForm'
+
 export default function ContractForm({
   template,
   formData,
@@ -65,109 +73,19 @@ export default function ContractForm({
       />
 
       {/* Template-specific fields */}
-      {template === 'loan' && (
-        <div className="space-y-4 pt-4 border-t border-gray-100">
-          <h4 className="font-semibold text-header">Loan Details</h4>
-          <Input
-            label="Loan Amount (RM)"
-            type="number"
-            value={formData.loanAmount || ''}
-            onChange={(e) => handleChange('loanAmount', e.target.value)}
-            placeholder="0.00"
-            icon={DollarSign}
-          />
-          <Input
-            label="Interest Rate (%)"
-            type="number"
-            value={formData.interestRate || ''}
-            onChange={(e) => handleChange('interestRate', e.target.value)}
-            placeholder="0"
-          />
-          <Input
-            label="Repayment Date"
-            type="date"
-            value={formData.repaymentDate || ''}
-            onChange={(e) => handleChange('repaymentDate', e.target.value)}
-          />
-        </div>
-      )}
+      {template === 'loan' && <LoanContractForm formData={formData} handleChange={handleChange} />}
 
-      {template === 'rental' && (
-        <div className="space-y-4 pt-4 border-t border-gray-100">
-          <h4 className="font-semibold text-header">Rental Details</h4>
-          <Input
-            label="Property Address"
-            value={formData.propertyAddress || ''}
-            onChange={(e) => handleChange('propertyAddress', e.target.value)}
-            placeholder="Enter address"
-            icon={MapPin}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Monthly Rent (RM)"
-              type="number"
-              value={formData.monthlyRent || ''}
-              onChange={(e) => handleChange('monthlyRent', e.target.value)}
-              placeholder="0.00"
-            />
-            <Input
-              label="Deposit (RM)"
-              type="number"
-              value={formData.depositAmount || ''}
-              onChange={(e) => handleChange('depositAmount', e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
-        </div>
-      )}
+      {template === 'vehicle' && <VehicleLoanContractForm formData={formData} handleChange={handleChange} acceptees={acceptees} />}
 
-      {template === 'service' && (
-        <div className="space-y-4 pt-4 border-t border-gray-100">
-          <h4 className="font-semibold text-header">Service Details</h4>
-          <Textarea
-            label="Service Description"
-            value={formData.serviceDescription || ''}
-            onChange={(e) => handleChange('serviceDescription', e.target.value)}
-            placeholder="Describe services"
-            rows={3}
-          />
-          <Input
-            label="Payment Amount (RM)"
-            type="number"
-            value={formData.paymentAmount || ''}
-            onChange={(e) => handleChange('paymentAmount', e.target.value)}
-            placeholder="0.00"
-            icon={DollarSign}
-          />
-          <Input
-            label="Deadline"
-            type="date"
-            value={formData.deadline || ''}
-            onChange={(e) => handleChange('deadline', e.target.value)}
-            icon={Clock}
-          />
-        </div>
-      )}
+      {template === 'rental' && <RentalContractForm formData={formData} handleChange={handleChange} />}
 
-      {template === 'custom' && (
-        <div className="space-y-4 pt-4 border-t border-gray-100">
-          <h4 className="font-semibold text-header">Custom Terms</h4>
-          <Textarea
-            label="Terms"
-            value={formData.terms || ''}
-            onChange={(e) => handleChange('terms', e.target.value)}
-            placeholder="Define contract terms"
-            rows={4}
-          />
-          <Textarea
-            label="Conditions"
-            value={formData.conditions || ''}
-            onChange={(e) => handleChange('conditions', e.target.value)}
-            placeholder="Specify conditions"
-            rows={4}
-          />
-        </div>
-      )}
+      {template === 'service' && <ServiceContractForm formData={formData} handleChange={handleChange} />}
+
+      {template === 'freelance' && <FreelanceContractForm formData={formData} handleChange={handleChange} />}
+
+      {template === 'deposit' && <DepositContractForm formData={formData} handleChange={handleChange} />}
+
+      {template === 'custom' && <CustomContractForm formData={formData} handleChange={handleChange} />}
 
       {onSubmit && (
         <Button type="submit" fullWidth className="mt-6">
