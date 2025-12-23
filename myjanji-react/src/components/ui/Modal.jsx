@@ -58,22 +58,22 @@ export default function Modal({
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className={`
               relative w-full ${sizes[size]}
-              bg-surface rounded-2xl card-shadow
+              card-glass rounded-3xl
               max-h-[90vh] overflow-hidden flex flex-col
             `}
           >
             {/* Header */}
             {(title || showCloseButton) && (
-              <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center justify-between p-6 border-b border-gray-100/50">
                 {title && (
-                  <h2 className="text-xl font-bold text-header">{title}</h2>
+                  <h2 className="text-xl font-bold text-header tracking-tight">{title}</h2>
                 )}
                 {showCloseButton && (
                   <button
                     onClick={onClose}
-                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    className="p-2 rounded-xl hover:bg-gray-100/80 transition-colors"
                   >
-                    <X className="h-5 w-5 text-body" />
+                    <X className="h-5 w-5 text-body" strokeWidth={1.5} />
                   </button>
                 )}
               </div>

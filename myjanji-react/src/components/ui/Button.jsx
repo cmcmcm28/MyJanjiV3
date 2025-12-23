@@ -2,19 +2,19 @@ import { forwardRef } from 'react'
 import { motion } from 'framer-motion'
 
 const variants = {
-  primary: 'gradient-primary text-white hover:opacity-90',
-  secondary: 'bg-secondary text-white hover:bg-secondary/90',
-  outline: 'border-2 border-primary text-primary hover:bg-primary/10',
-  ghost: 'text-primary hover:bg-primary/10',
-  danger: 'bg-status-breached text-white hover:bg-status-breached/90',
-  success: 'bg-status-ongoing text-white hover:bg-status-ongoing/90',
+  primary: 'gradient-button text-white hover:shadow-xl',
+  secondary: 'bg-secondary text-white hover:bg-secondary/90 shadow-md hover:shadow-lg',
+  outline: 'btn-pill-outline text-primary-mid hover:text-accent',
+  ghost: 'text-primary-mid hover:bg-primary-mid/10',
+  danger: 'bg-status-breached text-white hover:bg-status-breached/90 shadow-md',
+  success: 'bg-status-ongoing text-white hover:bg-status-ongoing/90 shadow-md',
 }
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2.5 text-base',
-  lg: 'px-6 py-3.5 text-lg',
-  xl: 'px-8 py-4 text-xl',
+  sm: 'px-5 py-2 text-sm',
+  md: 'px-6 py-3 text-base',
+  lg: 'px-8 py-4 text-lg',
+  xl: 'px-10 py-5 text-xl',
 }
 
 const Button = forwardRef(({
@@ -32,10 +32,10 @@ const Button = forwardRef(({
 }, ref) => {
   const baseStyles = `
     inline-flex items-center justify-center gap-2
-    font-semibold rounded-xl
-    transition-all duration-200
-    focus:outline-none focus:ring-2 focus:ring-primary/50
-    disabled:opacity-50 disabled:cursor-not-allowed
+    font-semibold rounded-full
+    transition-all duration-300 ease-out
+    focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2
+    disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
   `
 
   return (

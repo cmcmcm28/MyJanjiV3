@@ -53,33 +53,32 @@ export default function LandingPage() {
             {/* Features */}
             <div className="grid grid-cols-3 gap-4 mb-8">
               <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-                  <CreditCard className="h-6 w-6 text-primary" />
+                <div className="w-14 h-14 rounded-2xl icon-container flex items-center justify-center mb-2 transition-transform duration-300 hover:scale-110">
+                  <CreditCard className="h-6 w-6 text-primary-mid" strokeWidth={1.5} />
                 </div>
-                <p className="text-xs text-body/60 mt-1">IC Verification</p>
+                <p className="text-xs text-body/70 mt-1 font-medium">IC Verification</p>
               </div>
               <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-                  <ScanFace className="h-6 w-6 text-primary" />
+                <div className="w-14 h-14 rounded-2xl icon-container flex items-center justify-center mb-2 transition-transform duration-300 hover:scale-110">
+                  <ScanFace className="h-6 w-6 text-primary-mid" strokeWidth={1.5} />
                 </div>
-                <p className="text-xs text-body/60 mt-1">Face Recognition</p>
+                <p className="text-xs text-body/70 mt-1 font-medium">Face Recognition</p>
               </div>
               <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-                  <Shield className="h-6 w-6 text-primary" />
+                <div className="w-14 h-14 rounded-2xl icon-container flex items-center justify-center mb-2 transition-transform duration-300 hover:scale-110">
+                  <Shield className="h-6 w-6 text-primary-mid" strokeWidth={1.5} />
                 </div>
-                <p className="text-xs text-body/60 mt-1">Secure Signing</p>
+                <p className="text-xs text-body/70 mt-1 font-medium">Secure Signing</p>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <Button
                 fullWidth
                 size="lg"
                 onClick={() => navigate('/register')}
                 icon={UserPlus}
-                className="bg-gradient-to-r from-primary to-secondary"
               >
                 Create New Account
               </Button>

@@ -86,8 +86,8 @@ export default function ProfilePage() {
         <Card padding="md">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <CreditCard className="h-5 w-5 text-primary" />
+              <div className="p-2.5 rounded-xl icon-container">
+                <CreditCard className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-body/50">IC Number</p>
@@ -96,8 +96,8 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Mail className="h-5 w-5 text-primary" />
+              <div className="p-2.5 rounded-xl icon-container">
+                <Mail className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-body/50">Email</p>
@@ -106,8 +106,8 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Phone className="h-5 w-5 text-primary" />
+              <div className="p-2.5 rounded-xl icon-container">
+                <Phone className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-body/50">Phone</p>
@@ -125,30 +125,30 @@ export default function ProfilePage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <Shield className="h-5 w-5 text-green-600" />
+                <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-100 to-teal-50">
+                  <Shield className="h-5 w-5 text-green-600" strokeWidth={1.5} />
                 </div>
                 <div>
                   <p className="font-medium text-header">Identity Verified</p>
                   <p className="text-xs text-body/50">Face recognition enabled</p>
                 </div>
               </div>
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+              <span className="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-full font-medium">
                 Verified
               </span>
             </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <FileText className="h-5 w-5 text-primary" />
+                <div className="p-2.5 rounded-xl icon-container">
+                  <FileText className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
                 </div>
                 <div>
                   <p className="font-medium text-header">Digital Signature</p>
                   <p className="text-xs text-body/50">Biometric signature enabled</p>
                 </div>
               </div>
-              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+              <span className="text-xs bg-primary-mid/10 text-primary-mid px-3 py-1.5 rounded-full font-medium">
                 Active
               </span>
             </div>

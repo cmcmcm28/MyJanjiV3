@@ -161,28 +161,29 @@ export default function SignContractPage() {
               <div className="flex flex-col items-center">
                 <div
                   className={`
-                    w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                    w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0
+                    transition-all duration-300
                     ${currentStep > step.id
-                      ? 'bg-status-ongoing text-white'
+                      ? 'icon-container-primary text-white shadow-lg'
                       : currentStep === step.id
-                        ? 'gradient-primary text-white'
-                        : 'bg-gray-200 text-body/40'
+                        ? 'icon-container-primary text-white shadow-lg scale-110'
+                        : 'icon-container text-body/40'
                     }
                   `}
                 >
                   {currentStep > step.id ? (
-                    <Check className="h-5 w-5" />
+                    <Check className="h-5 w-5" strokeWidth={1.5} />
                   ) : (
-                    <step.icon className="h-5 w-5" />
+                    <step.icon className="h-5 w-5" strokeWidth={1.5} />
                   )}
                 </div>
-                <span className={`text-xs mt-1 whitespace-nowrap ${currentStep >= step.id ? 'text-header' : 'text-body/40'}`}>
+                <span className={`text-xs mt-2 whitespace-nowrap font-medium ${currentStep >= step.id ? 'text-header' : 'text-body/40'}`}>
                   {step.label}
                 </span>
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`w-8 h-0.5 mx-1 mt-[-18px] flex-shrink-0 ${currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
+                  className={`w-8 h-1 mx-1 mt-[-18px] flex-shrink-0 rounded-full ${currentStep > step.id ? 'bg-gradient-to-r from-primary-mid to-accent' : 'bg-gray-200'
                     }`}
                 />
               )}

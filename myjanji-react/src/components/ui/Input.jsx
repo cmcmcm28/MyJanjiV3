@@ -18,21 +18,22 @@ const Input = forwardRef(({
       )}
       <div className="relative">
         {Icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-body/50">
-            <Icon className="h-5 w-5" />
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-mid/60">
+            <Icon className="h-5 w-5" strokeWidth={1.5} />
           </div>
         )}
         <input
           ref={ref}
           type={type}
           className={`
-            w-full bg-input-bg rounded-xl
-            px-4 py-3 text-body
+            w-full bg-input-bg rounded-2xl
+            px-4 py-3.5 text-body
             placeholder:text-body/40
-            focus:outline-none focus:ring-2 focus:ring-primary/30
-            transition-all duration-200
+            border border-transparent
+            focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50
+            transition-all duration-300
             ${Icon ? 'pl-11' : ''}
-            ${error ? 'ring-2 ring-status-breached/50' : ''}
+            ${error ? 'ring-2 ring-status-breached/50 border-status-breached/50' : ''}
             ${className}
           `}
           {...props}
@@ -67,13 +68,14 @@ export function Textarea({
       <textarea
         rows={rows}
         className={`
-          w-full bg-input-bg rounded-xl
-          px-4 py-3 text-body
+          w-full bg-input-bg rounded-2xl
+          px-4 py-3.5 text-body
           placeholder:text-body/40
-          focus:outline-none focus:ring-2 focus:ring-primary/30
-          transition-all duration-200
+          border border-transparent
+          focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50
+          transition-all duration-300
           resize-none
-          ${error ? 'ring-2 ring-status-breached/50' : ''}
+          ${error ? 'ring-2 ring-status-breached/50 border-status-breached/50' : ''}
           ${className}
         `}
         {...props}
@@ -103,11 +105,12 @@ export function Select({
       )}
       <select
         className={`
-          w-full bg-input-bg rounded-xl
-          px-4 py-3 text-body
-          focus:outline-none focus:ring-2 focus:ring-primary/30
-          transition-all duration-200
-          ${error ? 'ring-2 ring-status-breached/50' : ''}
+          w-full bg-input-bg rounded-2xl
+          px-4 py-3.5 text-body
+          border border-transparent
+          focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50
+          transition-all duration-300
+          ${error ? 'ring-2 ring-status-breached/50 border-status-breached/50' : ''}
           ${className}
         `}
         {...props}

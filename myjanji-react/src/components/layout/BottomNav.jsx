@@ -35,8 +35,8 @@ export default function BottomNav() {
                 onClick={() => navigate(path)}
                 className="relative -mt-6"
               >
-                <div className="gradient-primary p-4 rounded-full shadow-lg">
-                  <Icon className="h-7 w-7 text-white" />
+                <div className="gradient-button p-4 rounded-full">
+                  <Icon className="h-7 w-7 text-white" strokeWidth={1.5} />
                 </div>
               </button>
             )
@@ -49,15 +49,15 @@ export default function BottomNav() {
               className={`
                 flex flex-col items-center gap-1 px-3 py-1 rounded-lg
                 transition-colors
-                ${isActive ? 'text-primary' : 'text-body/50 hover:text-body'}
+                ${isActive ? 'text-primary-mid' : 'text-body/50 hover:text-body'}
               `}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" strokeWidth={1.5} />
               <span className="text-xs font-medium">{label}</span>
               {isActive && (
                 <motion.div
                   layoutId="activeTab"
-                  className="absolute -bottom-2 w-1 h-1 bg-primary rounded-full"
+                  className="absolute -bottom-2 w-1 h-1 bg-accent rounded-full"
                 />
               )}
             </button>

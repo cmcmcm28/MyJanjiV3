@@ -5,26 +5,28 @@ export default function Card({
   className = '',
   padding = 'md',
   hover = false,
+  glass = true,
   onClick,
   ...props
 }) {
   const paddingSizes = {
     none: '',
-    sm: 'p-3',
-    md: 'p-5',
-    lg: 'p-6',
-    xl: 'p-8',
+    sm: 'p-4',
+    md: 'p-6',
+    lg: 'p-8',
+    xl: 'p-10',
   }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={hover ? { scale: 1.02, y: -2 } : {}}
+      whileHover={hover ? { scale: 1.02, y: -4 } : {}}
       className={`
-        bg-surface rounded-2xl card-shadow
+        rounded-3xl
+        ${glass ? 'card-glass' : 'bg-surface card-shadow'}
         ${paddingSizes[padding]}
-        ${hover ? 'cursor-pointer transition-shadow hover:shadow-lg' : ''}
+        ${hover ? 'cursor-pointer transition-all duration-300 hover:shadow-xl' : ''}
         ${className}
       `}
       onClick={onClick}
@@ -45,7 +47,7 @@ export function CardHeader({ children, className = '' }) {
 
 export function CardTitle({ children, className = '' }) {
   return (
-    <h3 className={`text-lg font-bold text-header ${className}`}>
+    <h3 className={`text-lg font-bold text-header tracking-tight ${className}`}>
       {children}
     </h3>
   )

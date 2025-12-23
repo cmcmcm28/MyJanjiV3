@@ -506,7 +506,7 @@ export default function CreateContractPage() {
 
       {loadingCategories ? (
         <div className="flex flex-col items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary-mid mb-3" />
           <p className="text-body/60">Loading contract templates...</p>
         </div>
       ) : (
@@ -520,32 +520,32 @@ export default function CreateContractPage() {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleCategorySelect(category)}
                 className={`
-                w-full text-left rounded-2xl overflow-hidden transition-all
+                w-full text-left rounded-3xl overflow-hidden transition-all shadow-lg
                 ${selectedCategory?.id === category.id
-                    ? 'ring-2 ring-primary'
-                    : 'hover:shadow-lg'
+                    ? 'ring-2 ring-accent'
+                    : 'hover:shadow-xl'
                   }
               `}
               >
-                <div className={`bg-gradient-to-r ${category.color} p-4 text-white`}>
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white/20 p-2 rounded-xl">
-                      <CategoryIcon className="h-6 w-6" />
+                <div className={`bg-gradient-to-r ${category.color} p-5 text-white`}>
+                  <div className="flex items-center gap-4">
+                    <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
+                      <CategoryIcon className="h-6 w-6" strokeWidth={1.5} />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-lg">{category.name}</h3>
                       <p className="text-white/80 text-sm">{category.description}</p>
                     </div>
-                    <ArrowRight className="h-5 w-5" />
+                    <ArrowRight className="h-5 w-5" strokeWidth={1.5} />
                   </div>
                 </div>
-                <div className="bg-white p-3 border-x border-b border-gray-100">
+                <div className="bg-white p-4 border-x border-b border-gray-100">
                   <div className="flex gap-2 flex-wrap">
                     {category.templates.map((t) => {
                       const TIcon = iconMap[t.icon] || FileText
                       return (
-                        <span key={t.id} className="inline-flex items-center gap-1 text-xs text-body/60 bg-gray-100 px-2 py-1 rounded-full">
-                          <TIcon className="h-3 w-3" />
+                        <span key={t.id} className="inline-flex items-center gap-1.5 text-xs text-body/70 bg-gray-100 px-3 py-1.5 rounded-full font-medium">
+                          <TIcon className="h-3 w-3" strokeWidth={1.5} />
                           {t.name}
                         </span>
                       )
@@ -1084,20 +1084,21 @@ export default function CreateContractPage() {
             <div key={step.id} className="flex items-center">
               <div
                 className={`
-                  w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
+                  w-8 h-8 rounded-xl flex items-center justify-center text-xs font-semibold flex-shrink-0
+                  transition-all duration-300
                   ${currentStep > step.id
-                    ? 'bg-status-ongoing text-white'
+                    ? 'icon-container-primary text-white shadow-md'
                     : currentStep === step.id
-                      ? 'gradient-primary text-white'
-                      : 'bg-gray-200 text-body/40'
+                      ? 'icon-container-primary text-white shadow-lg scale-105'
+                      : 'icon-container text-body/40'
                   }
                 `}
               >
-                {currentStep > step.id ? <Check className="h-3 w-3" /> : step.id + 1}
+                {currentStep > step.id ? <Check className="h-3 w-3" strokeWidth={2} /> : step.id + 1}
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`w-4 h-0.5 mx-0.5 ${currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
+                  className={`w-4 h-1 mx-0.5 rounded-full ${currentStep > step.id ? 'bg-gradient-to-r from-primary-mid to-accent' : 'bg-gray-200'
                     }`}
                 />
               )}

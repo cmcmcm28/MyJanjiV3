@@ -371,20 +371,20 @@ export default function RegisterPage() {
                   <div className="flex flex-col items-center relative z-10 group">
                     <div
                       className={`
-                        w-10 h-10 rounded-full flex items-center justify-center
+                        w-11 h-11 rounded-2xl flex items-center justify-center
                         transition-all duration-300
                         ${currentStep > step.id
-                          ? 'bg-status-ongoing text-white shadow-md'
+                          ? 'icon-container-primary text-white shadow-lg'
                           : currentStep === step.id
-                            ? 'gradient-primary text-white shadow-lg ring-2 ring-offset-2 ring-primary/20'
-                            : 'bg-gray-100 text-body/40'
+                            ? 'icon-container-primary text-white shadow-lg scale-110'
+                            : 'icon-container text-body/40'
                         }
                       `}
                     >
                       {currentStep > step.id ? (
-                        <CheckCircle className="h-5 w-5" />
+                        <CheckCircle className="h-5 w-5" strokeWidth={1.5} />
                       ) : (
-                        <step.icon className="h-5 w-5" />
+                        <step.icon className="h-5 w-5" strokeWidth={1.5} />
                       )}
                     </div>
                     <span className={`text-[10px] sm:text-xs mt-2 font-medium text-center max-w-[4rem] leading-tight transition-colors duration-300 ${currentStep >= step.id ? 'text-header' : 'text-body/40'}`}>
@@ -393,7 +393,7 @@ export default function RegisterPage() {
                   </div>
                   {index < steps.length - 1 && (
                     <div
-                      className={`flex-1 h-[2px] mx-1 mt-5 rounded-full transition-all duration-500 ease-in-out ${currentStep > index ? 'bg-status-ongoing' : 'bg-gray-100'
+                      className={`flex-1 h-1 mx-1 mt-5 rounded-full transition-all duration-500 ease-in-out ${currentStep > index ? 'bg-gradient-to-r from-primary-mid to-accent' : 'bg-gray-100'
                         }`}
                     />
                   )}
@@ -412,7 +412,9 @@ export default function RegisterPage() {
                   exit={{ opacity: 0, x: -20 }}
                   className="text-center"
                 >
-                  <CreditCard className="h-16 w-16 text-primary mx-auto mb-4" />
+                  <div className="w-20 h-20 mx-auto mb-4 icon-container rounded-3xl flex items-center justify-center">
+                    <CreditCard className="h-10 w-10 text-primary-mid" strokeWidth={1.5} />
+                  </div>
                   <h3 className="text-xl font-bold text-header mb-2">Upload Your IC Photo</h3>
                   <p className="text-body/60 text-sm mb-6">
                     Take a photo of your MyKad or select from gallery
