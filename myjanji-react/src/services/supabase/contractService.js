@@ -132,7 +132,7 @@ export const contractService = {
     }
   },
 
-  // Get user contracts
+  // Get user contracts with creator and acceptee details
   async getUserContracts(userId) {
     if (!isSupabaseConfigured()) {
       return { data: null, error: { message: 'Supabase not configured' } }
@@ -140,13 +140,17 @@ export const contractService = {
     try {
       const { data, error } = await supabase
         .from('contracts')
-        .select('*')
+        .select(`
+          *,
+          creator:users!contracts_created_user_id_fkey(user_id, name, email, phone),
+          acceptee:users!contracts_acceptee_user_id_fkey(user_id, name, email, phone)
+        `)
         .or(`created_user_id.eq.${userId},acceptee_user_id.eq.${userId}`)
         .order('created_at', { ascending: false })
       
       if (error) return { data: null, error }
       
-      // Transform to match frontend structure
+      // Transform to match frontend structure with creator/acceptee details
       const transformed = (data || []).map(contract => ({
         id: contract.contract_id,
         name: contract.contract_name,
@@ -154,6 +158,13 @@ export const contractService = {
         status: contract.status,
         userId: contract.created_user_id,
         accepteeId: contract.acceptee_user_id,
+        // Include creator and acceptee user details
+        creatorName: contract.creator?.name || 'Unknown',
+        creatorEmail: contract.creator?.email || '',
+        creatorPhone: contract.creator?.phone || '',
+        accepteeName: contract.acceptee?.name || 'Unknown',
+        accepteeEmail: contract.acceptee?.email || '',
+        accepteePhone: contract.acceptee?.phone || '',
         signatureDate: contract.created_at ? new Date(contract.created_at) : new Date(),
         dueDate: contract.due_date ? new Date(contract.due_date) : null,
         templateType: contract.template_type,

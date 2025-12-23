@@ -381,19 +381,25 @@ export default function DashboardPage() {
               <p className="text-body/60">{selectedContract.topic}</p>
             </div>
 
-            {/* Parties */}
+            {/* Parties - Using fetched user details from Supabase */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Creator</p>
                 <p className="font-medium text-header text-sm">
-                  {users[selectedContract.userId]?.name || 'Unknown'}
+                  {selectedContract.creatorName || users[selectedContract.userId]?.name || 'Unknown'}
                 </p>
+                {selectedContract.creatorEmail && (
+                  <p className="text-xs text-body/50 truncate">{selectedContract.creatorEmail}</p>
+                )}
               </div>
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs text-body/50 mb-1">Acceptee</p>
                 <p className="font-medium text-header text-sm">
-                  {users[selectedContract.accepteeId]?.name || 'Unknown'}
+                  {selectedContract.accepteeName || users[selectedContract.accepteeId]?.name || 'Unknown'}
                 </p>
+                {selectedContract.accepteeEmail && (
+                  <p className="text-xs text-body/50 truncate">{selectedContract.accepteeEmail}</p>
+                )}
               </div>
             </div>
 
@@ -414,7 +420,16 @@ export default function DashboardPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+              {selectedContract.pdfUrl && (
+                <Button
+                  variant="outline"
+                  icon={Eye}
+                  onClick={() => window.open(selectedContract.pdfUrl, '_blank')}
+                >
+                  View PDF
+                </Button>
+              )}
               <Button
                 variant="outline"
                 icon={QrCode}

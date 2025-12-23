@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
           const transformed = data.map(user => ({
             id: user.user_id,
             name: user.name,
-            ic: user.ic_hash || '', // Note: This is a hash, not the actual IC
+            ic: user.user_id || '', // user_id stores the IC number
             avatar: user.avatar || '/images/default-avatar.png',
             email: user.email || '',
             phone: user.phone || '',
@@ -51,7 +51,7 @@ export function AuthProvider({ children }) {
         const user = {
           id: supabaseUser.user_id,
           name: supabaseUser.name,
-          ic: supabaseUser.ic_hash || '',
+          ic: supabaseUser.user_id || '', // user_id stores the IC number
           avatar: supabaseUser.avatar || '/images/default-avatar.png',
           email: supabaseUser.email || '',
           phone: supabaseUser.phone || '',
