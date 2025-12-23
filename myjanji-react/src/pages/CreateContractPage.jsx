@@ -120,7 +120,7 @@ export default function CreateContractPage() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [hasConsented, setHasConsented] = useState(false)
 
-  const availableAcceptees = Object.values(users).filter(u => u.id !== currentUser?.id)
+  const availableAcceptees = (availableUsers || Object.values(users)).filter(u => u.id !== currentUser?.id)
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
