@@ -38,6 +38,10 @@ import NFCScanner from '../components/features/NFCScanner'
 import PDFPreviewModal from '../components/features/PDFPreviewModal'
 import faceAuthService from '../services/faceAuthService'
 import { storageService } from '../services/supabase/storageService'
+import FreelanceContractForm from '../components/contracts/templates/FreelanceContractForm'
+import DepositContractForm from '../components/contracts/templates/DepositContractForm'
+import LoanContractForm from '../components/contracts/templates/LoanContractForm'
+import VehicleLoanContractForm from '../components/contracts/templates/VehicleLoanContractForm'
 
 const iconMap = {
   Car,
@@ -64,7 +68,7 @@ export default function CreateContractPage() {
   const { currentUser } = useAuth()
   const { addContract, updateContract } = useContracts()
   const webcamRef = useRef(null)
-  
+
   const [currentStep, setCurrentStep] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
@@ -103,13 +107,13 @@ export default function CreateContractPage() {
     deposit: '',
   })
   const [creatorSignature, setCreatorSignature] = useState(null)
-  
+
   // NFC and Face verification states
   const [nfcData, setNfcData] = useState(null)
   const [isScanning, setIsScanning] = useState(false)
   const [scanResult, setScanResult] = useState(null)
   const [faceVerified, setFaceVerified] = useState(false)
-  
+
   // PDF preview and consent states
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [hasConsented, setHasConsented] = useState(false)
@@ -170,12 +174,12 @@ export default function CreateContractPage() {
     if (!imageSrc) return
 
     const result = await faceAuthService.verifyFrame(imageSrc)
-    
+
     if (result.success) {
       setIsScanning(false)
       setScanResult({ success: true, score: result.score })
       setFaceVerified(true)
-      
+
       // Auto-advance to signature step
       setTimeout(() => {
         setCurrentStep(6)
@@ -242,22 +246,22 @@ export default function CreateContractPage() {
     if (!creatorSignature || !currentUser) return
 
     try {
-    const newContract = {
-      name: formData.name || selectedTemplate?.name || 'Untitled Contract',
-      topic: formData.topic || selectedTemplate?.description || '',
-      userId: currentUser.id,
-      accepteeId: formData.accepteeId,
-      status: 'Pending',
-      dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      templateType: selectedTemplate?.id,
-      formData: { ...formData },
+      const newContract = {
+        name: formData.name || selectedTemplate?.name || 'Untitled Contract',
+        topic: formData.topic || selectedTemplate?.description || '',
+        userId: currentUser.id,
+        accepteeId: formData.accepteeId,
+        status: 'Pending',
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        templateType: selectedTemplate?.id,
+        formData: { ...formData },
         creatorSignature, // Will be updated after upload
-      accepteeSignature: null,
-      signatureDate: new Date(),
-      // Store verification data
+        accepteeSignature: null,
+        signatureDate: new Date(),
+        // Store verification data
         creatorNfcVerified: nfcData ? true : false,
         creatorFaceVerified: faceVerified,
-    }
+      }
 
       // Create contract first to get the contract ID
       const createdContract = await addContract(newContract)
@@ -281,7 +285,7 @@ export default function CreateContractPage() {
           file,
           'creator'
         )
-        
+
         if (!uploadError && uploadData) {
           // Update contract with signature URL
           await updateContract(contractId, {
@@ -292,9 +296,9 @@ export default function CreateContractPage() {
         console.error('Error uploading signature:', uploadError)
         // Contract is still created, signature just not uploaded to storage
       }
-      
-    // Navigate to contract created page with the contract
-    navigate('/contract-created', { state: { contract: createdContract } })
+
+      // Navigate to contract created page with the contract
+      navigate('/contract-created', { state: { contract: createdContract } })
     } catch (error) {
       console.error('Error creating contract:', error)
       // Fallback: create contract without uploading signature
@@ -447,266 +451,140 @@ export default function CreateContractPage() {
       <p className="text-body/60 mb-6">Fill in the contract information</p>
 
       {/* Common Fields */}
-      <Input
-        label="Contract Name"
-        value={formData.name}
-        onChange={(e) => handleInputChange('name', e.target.value)}
-        placeholder="Enter contract name"
-        icon={FileText}
-      />
-
-      <Select
-        label="Select Acceptee (Other Party)"
-        value={formData.accepteeId}
-        onChange={(e) => handleInputChange('accepteeId', e.target.value)}
-        options={availableAcceptees.map(u => ({ value: u.id, label: `${u.name} (${u.ic})` }))}
-        placeholder="Choose the other party"
-      />
+      {selectedTemplate?.id !== 'FREELANCE_JOB' && selectedTemplate?.id !== 'SALE_DEPOSIT' && selectedTemplate?.id !== 'ITEM_BORROW' && selectedTemplate?.id !== 'VEHICLE_USE' && (
+        <>
+          <Input
+            label="Contract Name"
+            value={formData.name}
+            onChange={(e) => handleInputChange('name', e.target.value)}
+            placeholder="Enter contract name"
+            icon={FileText}
+          />
+          <Select
+            label="Select Acceptee (Other Party)"
+            value={formData.accepteeId}
+            onChange={(e) => handleInputChange('accepteeId', e.target.value)}
+            options={availableAcceptees.map(u => ({ value: u.id, label: `${u.name} (${u.ic})` }))}
+            placeholder="Choose the other party"
+          />
+        </>
+      )}
 
       {/* Template-specific fields */}
       {selectedTemplate?.id === 'VEHICLE_USE' && (
-        <>
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
-              <Car className="h-4 w-4 text-primary" />
-              Vehicle Details
-            </h3>
-          </div>
-          <Input
-            label="Vehicle Model"
-            value={formData.model}
-            onChange={(e) => handleInputChange('model', e.target.value)}
-            placeholder="e.g., Toyota Vios 2023"
+        <VehicleLoanContractForm
+          formData={formData}
+          handleChange={handleInputChange}
+          acceptees={availableAcceptees}
+        />
+      )}
+
+      {
+        selectedTemplate?.id === 'ITEM_BORROW' && (
+          <LoanContractForm
+            formData={formData}
+            handleChange={handleInputChange}
+            acceptees={availableAcceptees}
           />
-          <Input
-            label="Plate Number"
-            value={formData.plate}
-            onChange={(e) => handleInputChange('plate', e.target.value)}
-            placeholder="e.g., WXY 1234"
-          />
-          <div className="grid grid-cols-2 gap-3">
+        )
+      }
+
+      {
+        selectedTemplate?.id === 'BILL_SPLIT' && (
+          <>
+            <div className="border-t border-gray-100 pt-4 mt-4">
+              <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-primary" />
+                Bill Details
+              </h3>
+            </div>
             <Input
-              label="Start Date"
+              label="Expense Description"
+              value={formData.description}
+              onChange={(e) => handleInputChange('description', e.target.value)}
+              placeholder="e.g., Dinner at Restaurant X"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Total Bill (RM)"
+                type="number"
+                value={formData.total}
+                onChange={(e) => handleInputChange('total', e.target.value)}
+                placeholder="100"
+              />
+              <Input
+                label="Their Share (RM)"
+                type="number"
+                value={formData.share}
+                onChange={(e) => handleInputChange('share', e.target.value)}
+                placeholder="50"
+              />
+            </div>
+            <Input
+              label="Settlement Date"
               type="date"
-              value={formData.startDate}
-              onChange={(e) => handleInputChange('startDate', e.target.value)}
+              value={formData.date}
+              onChange={(e) => handleInputChange('date', e.target.value)}
+              icon={Calendar}
             />
-            <Input
-              label="End Date"
-              type="date"
-              value={formData.endDate}
-              onChange={(e) => handleInputChange('endDate', e.target.value)}
-            />
-          </div>
-          <Select
-            label="Fuel Agreement"
-            value={formData.fuel}
-            onChange={(e) => handleInputChange('fuel', e.target.value)}
-            options={[
-              { value: 'Full-to-Full', label: 'Full-to-Full' },
-              { value: 'Same-to-Same', label: 'Same-to-Same' },
-              { value: 'Borrower pays all', label: 'Borrower pays all' },
-            ]}
-          />
-        </>
-      )}
+          </>
+        )
+      }
 
-      {selectedTemplate?.id === 'ITEM_BORROW' && (
-        <>
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
-              <Package className="h-4 w-4 text-primary" />
-              Item Details
-            </h3>
-          </div>
-          <Input
-            label="Item Name"
-            value={formData.item}
-            onChange={(e) => handleInputChange('item', e.target.value)}
-            placeholder="e.g., iPhone 17, Camera, Laptop"
-          />
-          <Select
-            label="Item Condition"
-            value={formData.condition}
-            onChange={(e) => handleInputChange('condition', e.target.value)}
-            options={[
-              { value: 'Brand New', label: 'Brand New' },
-              { value: 'Like New', label: 'Like New' },
-              { value: 'Good', label: 'Good' },
-              { value: 'Fair', label: 'Fair' },
-            ]}
-          />
-          <Input
-            label="Return Date"
-            type="date"
-            value={formData.returnDate}
-            onChange={(e) => handleInputChange('returnDate', e.target.value)}
-            icon={Calendar}
-          />
-          <Input
-            label="Replacement Value (RM)"
-            type="number"
-            value={formData.value}
-            onChange={(e) => handleInputChange('value', e.target.value)}
-            placeholder="5000"
-            icon={DollarSign}
-          />
-        </>
-      )}
-
-      {selectedTemplate?.id === 'BILL_SPLIT' && (
-        <>
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-primary" />
-              Bill Details
-            </h3>
-          </div>
-          <Input
-            label="Expense Description"
-            value={formData.description}
-            onChange={(e) => handleInputChange('description', e.target.value)}
-            placeholder="e.g., Dinner at Restaurant X"
-          />
-          <div className="grid grid-cols-2 gap-3">
+      {
+        selectedTemplate?.id === 'FRIENDLY_LOAN' && (
+          <>
+            <div className="border-t border-gray-100 pt-4 mt-4">
+              <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
+                <Banknote className="h-4 w-4 text-primary" />
+                Loan Details
+              </h3>
+            </div>
             <Input
-              label="Total Bill (RM)"
+              label="Loan Amount (RM)"
               type="number"
-              value={formData.total}
-              onChange={(e) => handleInputChange('total', e.target.value)}
-              placeholder="100"
-            />
-            <Input
-              label="Their Share (RM)"
-              type="number"
-              value={formData.share}
-              onChange={(e) => handleInputChange('share', e.target.value)}
-              placeholder="50"
-            />
-          </div>
-          <Input
-            label="Settlement Date"
-            type="date"
-            value={formData.date}
-            onChange={(e) => handleInputChange('date', e.target.value)}
-            icon={Calendar}
-          />
-        </>
-      )}
-
-      {selectedTemplate?.id === 'FRIENDLY_LOAN' && (
-        <>
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
-              <Banknote className="h-4 w-4 text-primary" />
-              Loan Details
-            </h3>
-          </div>
-          <Input
-            label="Loan Amount (RM)"
-            type="number"
-            value={formData.amount}
-            onChange={(e) => handleInputChange('amount', e.target.value)}
-            placeholder="1000"
-            icon={DollarSign}
-          />
-          <Input
-            label="Purpose of Loan"
-            value={formData.purpose}
-            onChange={(e) => handleInputChange('purpose', e.target.value)}
-            placeholder="e.g., Emergency expenses, Education"
-          />
-          <Input
-            label="Repayment Date"
-            type="date"
-            value={formData.date}
-            onChange={(e) => handleInputChange('date', e.target.value)}
-            icon={Calendar}
-          />
-        </>
-      )}
-
-      {selectedTemplate?.id === 'FREELANCE_JOB' && (
-        <>
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-primary" />
-              Job Details
-            </h3>
-          </div>
-          <Textarea
-            label="Task Description"
-            value={formData.task}
-            onChange={(e) => handleInputChange('task', e.target.value)}
-            placeholder="Describe the work to be done..."
-            rows={3}
-          />
-          <Input
-            label="Deadline"
-            type="date"
-            value={formData.deadline}
-            onChange={(e) => handleInputChange('deadline', e.target.value)}
-            icon={Clock}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Total Price (RM)"
-              type="number"
-              value={formData.price}
-              onChange={(e) => handleInputChange('price', e.target.value)}
-              placeholder="500"
-            />
-            <Input
-              label="Deposit Received (RM)"
-              type="number"
-              value={formData.deposit}
-              onChange={(e) => handleInputChange('deposit', e.target.value)}
-              placeholder="100"
-            />
-          </div>
-        </>
-      )}
-
-      {selectedTemplate?.id === 'SALE_DEPOSIT' && (
-        <>
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            <h3 className="font-semibold text-header mb-3 flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-primary" />
-              Sale Details
-            </h3>
-          </div>
-          <Input
-            label="Item for Sale"
-            value={formData.item}
-            onChange={(e) => handleInputChange('item', e.target.value)}
-            placeholder="e.g., Laptop, Phone, Furniture"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Total Price (RM)"
-              type="number"
-              value={formData.price}
-              onChange={(e) => handleInputChange('price', e.target.value)}
+              value={formData.amount}
+              onChange={(e) => handleInputChange('amount', e.target.value)}
               placeholder="1000"
+              icon={DollarSign}
             />
             <Input
-              label="Deposit Received (RM)"
-              type="number"
-              value={formData.deposit}
-              onChange={(e) => handleInputChange('deposit', e.target.value)}
-              placeholder="200"
+              label="Purpose of Loan"
+              value={formData.purpose}
+              onChange={(e) => handleInputChange('purpose', e.target.value)}
+              placeholder="e.g., Emergency expenses, Education"
             />
-          </div>
-          <Input
-            label="Balance Due Date"
-            type="date"
-            value={formData.dueDate}
-            onChange={(e) => handleInputChange('dueDate', e.target.value)}
-            icon={Calendar}
+            <Input
+              label="Repayment Date"
+              type="date"
+              value={formData.date}
+              onChange={(e) => handleInputChange('date', e.target.value)}
+              icon={Calendar}
+            />
+          </>
+        )
+      }
+
+      {
+        selectedTemplate?.id === 'FREELANCE_JOB' && (
+          <FreelanceContractForm
+            formData={formData}
+            handleChange={handleInputChange}
+            acceptees={availableAcceptees}
           />
-        </>
-      )}
-    </motion.div>
+        )
+      }
+
+      {
+        selectedTemplate?.id === 'SALE_DEPOSIT' && (
+          <DepositContractForm
+            formData={formData}
+            handleChange={handleInputChange}
+            acceptees={availableAcceptees}
+          />
+        )
+      }
+    </motion.div >
   )
 
   const renderReviewStep = () => (
@@ -792,7 +670,7 @@ export default function CreateContractPage() {
                 I have reviewed the contract
               </p>
               <p className="text-xs text-body/50 mt-1">
-                I confirm that I have read and understand all terms and conditions in this contract. 
+                I confirm that I have read and understand all terms and conditions in this contract.
                 I agree to proceed with identity verification and signing.
               </p>
             </div>
@@ -887,15 +765,14 @@ export default function CreateContractPage() {
             }}
             className="w-full"
           />
-          
+
           {/* Face Guide Overlay */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${
-              scanResult?.success ? 'border-green-500' :
+            <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${scanResult?.success ? 'border-green-500' :
               scanResult?.message === 'Face mismatch' ? 'border-red-500' :
-              scanResult?.message === 'No face detected' ? 'border-yellow-500' :
-              'border-white/50'
-            }`} />
+                scanResult?.message === 'No face detected' ? 'border-yellow-500' :
+                  'border-white/50'
+              }`} />
           </div>
 
           {/* Scanning Animation */}
@@ -910,11 +787,10 @@ export default function CreateContractPage() {
         </div>
 
         {/* Scan Status */}
-        <div className={`text-center p-3 rounded-xl mb-4 ${
-          scanResult?.success ? 'bg-green-50 text-green-700' :
+        <div className={`text-center p-3 rounded-xl mb-4 ${scanResult?.success ? 'bg-green-50 text-green-700' :
           scanResult?.message ? 'bg-yellow-50 text-yellow-700' :
-          'bg-blue-50 text-blue-700'
-        }`}>
+            'bg-blue-50 text-blue-700'
+          }`}>
           {scanResult?.success ? (
             <div className="flex items-center justify-center gap-2">
               <CheckCircle className="h-5 w-5" />
@@ -1034,8 +910,8 @@ export default function CreateContractPage() {
                   ${currentStep > step.id
                     ? 'bg-status-ongoing text-white'
                     : currentStep === step.id
-                    ? 'gradient-primary text-white'
-                    : 'bg-gray-200 text-body/40'
+                      ? 'gradient-primary text-white'
+                      : 'bg-gray-200 text-body/40'
                   }
                 `}
               >
@@ -1043,9 +919,8 @@ export default function CreateContractPage() {
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`w-4 h-0.5 mx-0.5 ${
-                    currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
-                  }`}
+                  className={`w-4 h-0.5 mx-0.5 ${currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
+                    }`}
                 />
               )}
             </div>
@@ -1075,7 +950,7 @@ export default function CreateContractPage() {
               Back
             </Button>
           )}
-          
+
           {currentStep >= 2 && currentStep <= 3 && (
             <Button
               onClick={handleNext}
@@ -1090,7 +965,7 @@ export default function CreateContractPage() {
               {currentStep === 3 ? (hasConsented ? 'Start Verification' : 'Please consent above') : 'Next'}
             </Button>
           )}
-          
+
           {currentStep === 6 && (
             <Button
               onClick={handleCreateContract}

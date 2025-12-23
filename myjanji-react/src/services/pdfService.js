@@ -139,20 +139,20 @@ const contractTemplates = {
     breach: "Failure by the Borrower to settle this acknowledged debt by the Due Date constitutes a breach of promise. This digital record serves as formal proof of debt for any subsequent recovery action.",
   },
   ITEM_BORROW: {
-    terms: "The Lender temporarily hands over possession of {{item}} (Condition: {{condition}}) to the Borrower. The Borrower agrees to return the item in the same condition on or before {{returnDate}}.",
-    breach: "Late Return: A penalty of RM20 per day will be charged. Damage/Loss: If the item is lost or damaged, the Borrower agrees to pay the Lender the full Replacement Value of RM{{value}} within 7 days.",
+    terms: "AGREEMENT DATE: {{effectiveDate}}\n\nLOAN PERIOD: {{startDate}} to {{endDate}}\n\nLENDER: {{creatorName}} ({{creatorIdNumber}})\nBORROWER: {{accepteeName}} ({{accepteeIdNumber}})\n\nEQUIPMENT LIST:\n{{equipmentList}}\n\nREPLACEMENT VALUE: RM{{replacementValue}}\n\nPAYMENT TERMS: Rental Fee of RM{{rentalFee}} ({{paymentFrequency}}).",
+    breach: "Late Return: A penalty of RM20 per day will be charged. Damage/Loss: If the equipment is lost or damaged, the Borrower agrees to pay the Lender the full Replacement Value of RM{{replacementValue}} within 7 days.",
   },
   VEHICLE_USE: {
-    terms: "The Owner grants temporary use of vehicle {{model}}, plate number {{plate}}, to the Borrower from {{startDate}} until {{endDate}}.",
-    breach: "The Borrower accepts full financial responsibility for traffic summons (SAMAN), fuel costs as per the '{{fuel}}' agreement, and any damages or insurance excesses incurred due to negligence.",
+    terms: "AGREEMENT DATE: {{effectiveDate}}\n\nLENDING PERIOD: {{startDate}} to {{endDate}}\n\nVEHICLE OWNER: {{creatorName}} ({{creatorIdNumber}})\nBORROWER: {{accepteeName}} ({{accepteeIdNumber}})\n\nVEHICLE DETAILS:\n{{vehicleList}}\n\nREPLACEMENT VALUE: RM{{replacementValue}}\n\nPAYMENT TERMS: Rental Fee of RM{{rentalFee}} ({{paymentFrequency}}).",
+    breach: "The Borrower accepts full financial responsibility for traffic summons (SAMAN), fuel costs, and any damages or insurance excesses incurred due to negligence. Loss of vehicle requires payment of Replacement Value (RM{{replacementValue}}) within 14 days.",
   },
   FREELANCE_JOB: {
     terms: "The Client engages the Provider to complete: {{task}}, by {{deadline}}. Total price: RM{{price}}. Deposit received: RM{{deposit}}.",
     breach: "Provider Breach: Failure to deliver allows Client to demand full refund. Client Breach: Failure to pay balance after delivery constitutes a formal debt.",
   },
   SALE_DEPOSIT: {
-    terms: "Seller acknowledges receipt of RM{{deposit}} deposit from Buyer to secure purchase of {{item}} (Total Price: RM{{price}}). Balance due by {{dueDate}}.",
-    breach: "Buyer Breach: Failure to pay balance results in forfeiture of deposit. Seller Breach: Selling to another party requires full refund of deposit plus RM50 penalty.",
+    terms: "AGREEMENT DATE: {{agreementDate}}\n\nDEPOSITOR: {{depositorName}} ({{depositorNric}})\nRECIPIENT: {{recipientName}} ({{recipientNric}})\n\nTRANSACTION: {{transactionDescription}}\nTOTAL VALUE: RM{{totalTransactionAmount}}\n\nDEPOSIT: RM{{depositAmount}} via {{paymentMethod}} by {{depositDeadline}}.\n\nBALANCE TERMS: {{balancePaymentTerms}}\n\nREFUND POLICY: {{refundStatus}} ({{refundDays}} days if refundable).",
+    breach: "Failure to proceed with the transaction according to these terms may result in forfeiture of the deposit or requirement to refund the deposit, subject to the Refund Policy stated above.",
   },
   // Default templates for generic types
   loan: {
@@ -204,18 +204,18 @@ function formatDateTime(date) {
 }
 
 // Contract PDF Document Component
-function ContractDocument({ 
-  contract, 
-  creator, 
+function ContractDocument({
+  contract,
+  creator,
   acceptee,
   templateType = 'custom',
   formData = {},
   includeSignatures = true,
 }) {
   // Get template or use defaults
-  const template = contractTemplates[templateType?.toUpperCase()] || 
-                   contractTemplates[templateType] || 
-                   contractTemplates.custom
+  const template = contractTemplates[templateType?.toUpperCase()] ||
+    contractTemplates[templateType] ||
+    contractTemplates.custom
 
   // Build form data for placeholder replacement
   const allFormData = {
@@ -291,13 +291,13 @@ function ContractDocument({
           contract?.creatorSignature
             ? createElement(Image, { src: contract.creatorSignature, style: styles.signatureImage })
             : createElement(View, { style: styles.signatureBox },
-                createElement(Text, { style: styles.signaturePlaceholder }, '[Pending Signature]')
-              ),
+              createElement(Text, { style: styles.signaturePlaceholder }, '[Pending Signature]')
+            ),
           createElement(Text, { style: styles.signatureName }, creator?.name || 'SpongeBob bin Squarepants'),
           createElement(Text, { style: styles.signatureIc }, `IC: ${creator?.ic || '123456-12-1234'}`),
-          createElement(Text, { style: styles.signatureTimestamp }, 
-            contract?.creatorSignature 
-              ? `Signed: ${formatDateTime(contract?.signatureDate)}` 
+          createElement(Text, { style: styles.signatureTimestamp },
+            contract?.creatorSignature
+              ? `Signed: ${formatDateTime(contract?.signatureDate)}`
               : 'Signed: [Pending]'
           )
         ),
@@ -307,13 +307,13 @@ function ContractDocument({
           contract?.accepteeSignature
             ? createElement(Image, { src: contract.accepteeSignature, style: styles.signatureImage })
             : createElement(View, { style: styles.signatureBox },
-                createElement(Text, { style: styles.signaturePlaceholder }, '[Pending Signature]')
-              ),
+              createElement(Text, { style: styles.signaturePlaceholder }, '[Pending Signature]')
+            ),
           createElement(Text, { style: styles.signatureName }, acceptee?.name || ''),
           createElement(Text, { style: styles.signatureIc }, acceptee?.ic ? `IC: ${acceptee.ic}` : 'IC:'),
-          createElement(Text, { style: styles.signatureTimestamp }, 
-            contract?.accepteeSignature 
-              ? `Signed: ${formatDateTime(new Date())}` 
+          createElement(Text, { style: styles.signatureTimestamp },
+            contract?.accepteeSignature
+              ? `Signed: ${formatDateTime(new Date())}`
               : 'Signed: [Pending]'
           )
         )
@@ -329,9 +329,9 @@ export const pdfService = {
   // Generate PDF blob from contract
   async generateContractPDF(contract, creator, acceptee, options = {}) {
     try {
-      const doc = createElement(ContractDocument, { 
-        contract, 
-        creator, 
+      const doc = createElement(ContractDocument, {
+        contract,
+        creator,
         acceptee,
         templateType: contract?.templateType || options.templateType || 'custom',
         formData: contract?.formData || options.formData || {},
