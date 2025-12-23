@@ -775,15 +775,9 @@ export default function CreateContractPage() {
           {/* Face Guide Overlay */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${scanResult?.success ? 'border-green-500' :
-<<<<<<< HEAD
-                scanResult?.message === 'Face mismatch' ? 'border-red-500' :
-                  scanResult?.message === 'No face detected' ? 'border-yellow-500' :
-                    'border-white/50'
-=======
               scanResult?.message === 'Face mismatch' ? 'border-red-500' :
                 scanResult?.message === 'No face detected' ? 'border-yellow-500' :
                   'border-white/50'
->>>>>>> 4985f905e2259792c983f116cd1eb4a2b3ea6f1a
               }`} />
           </div>
 
@@ -800,13 +794,8 @@ export default function CreateContractPage() {
 
         {/* Scan Status */}
         <div className={`text-center p-3 rounded-xl mb-4 ${scanResult?.success ? 'bg-green-50 text-green-700' :
-<<<<<<< HEAD
-            scanResult?.message ? 'bg-yellow-50 text-yellow-700' :
-              'bg-blue-50 text-blue-700'
-=======
           scanResult?.message ? 'bg-yellow-50 text-yellow-700' :
             'bg-blue-50 text-blue-700'
->>>>>>> 4985f905e2259792c983f116cd1eb4a2b3ea6f1a
           }`}>
           {scanResult?.success ? (
             <div className="flex items-center justify-center gap-2">
@@ -836,7 +825,7 @@ export default function CreateContractPage() {
           </button>
         </div>
       </Card>
-    </motion.div>
+    </motion.div >
   )
 
   const renderSignStep = () => (
