@@ -64,11 +64,11 @@ export default function CreateContractPage() {
   const { currentUser } = useAuth()
   const { addContract, updateContract } = useContracts()
   const webcamRef = useRef(null)
-  
+
   const [currentStep, setCurrentStep] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
-  
+
   // Dynamic categories from Supabase
   const [contractCategories, setContractCategories] = useState(fallbackCategories)
   const [loadingCategories, setLoadingCategories] = useState(true)
@@ -103,13 +103,13 @@ export default function CreateContractPage() {
     deposit: '',
   })
   const [creatorSignature, setCreatorSignature] = useState(null)
-  
+
   // NFC and Face verification states
   const [nfcData, setNfcData] = useState(null)
   const [isScanning, setIsScanning] = useState(false)
   const [scanResult, setScanResult] = useState(null)
   const [faceVerified, setFaceVerified] = useState(false)
-  
+
   // PDF preview and consent states
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [hasConsented, setHasConsented] = useState(false)
@@ -170,12 +170,12 @@ export default function CreateContractPage() {
     if (!imageSrc) return
 
     const result = await faceAuthService.verifyFrame(imageSrc)
-    
+
     if (result.success) {
       setIsScanning(false)
       setScanResult({ success: true, score: result.score })
       setFaceVerified(true)
-      
+
       // Auto-advance to signature step
       setTimeout(() => {
         setCurrentStep(6)
@@ -242,22 +242,22 @@ export default function CreateContractPage() {
     if (!creatorSignature || !currentUser) return
 
     try {
-    const newContract = {
-      name: formData.name || selectedTemplate?.name || 'Untitled Contract',
-      topic: formData.topic || selectedTemplate?.description || '',
-      userId: currentUser.id,
-      accepteeId: formData.accepteeId,
-      status: 'Pending',
-      dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      templateType: selectedTemplate?.id,
-      formData: { ...formData },
+      const newContract = {
+        name: formData.name || selectedTemplate?.name || 'Untitled Contract',
+        topic: formData.topic || selectedTemplate?.description || '',
+        userId: currentUser.id,
+        accepteeId: formData.accepteeId,
+        status: 'Pending',
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        templateType: selectedTemplate?.id,
+        formData: { ...formData },
         creatorSignature, // Will be updated after upload
-      accepteeSignature: null,
-      signatureDate: new Date(),
-      // Store verification data
+        accepteeSignature: null,
+        signatureDate: new Date(),
+        // Store verification data
         creatorNfcVerified: nfcData ? true : false,
         creatorFaceVerified: faceVerified,
-    }
+      }
 
       // Create contract first to get the contract ID
       const createdContract = await addContract(newContract)
@@ -281,7 +281,7 @@ export default function CreateContractPage() {
           file,
           'creator'
         )
-        
+
         if (!uploadError && uploadData) {
           // Update contract with signature URL
           await updateContract(contractId, {
@@ -292,9 +292,9 @@ export default function CreateContractPage() {
         console.error('Error uploading signature:', uploadError)
         // Contract is still created, signature just not uploaded to storage
       }
-      
-    // Navigate to contract created page with the contract
-    navigate('/contract-created', { state: { contract: createdContract } })
+
+      // Navigate to contract created page with the contract
+      navigate('/contract-created', { state: { contract: createdContract } })
     } catch (error) {
       console.error('Error creating contract:', error)
       // Fallback: create contract without uploading signature
@@ -333,52 +333,52 @@ export default function CreateContractPage() {
           <p className="text-body/60">Loading contract templates...</p>
         </div>
       ) : (
-      <div className="space-y-4">
-        {contractCategories.map((category) => {
-          const CategoryIcon = iconMap[category.icon] || Package
-          return (
-            <motion.button
-              key={category.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleCategorySelect(category)}
-              className={`
+        <div className="space-y-4">
+          {contractCategories.map((category) => {
+            const CategoryIcon = iconMap[category.icon] || Package
+            return (
+              <motion.button
+                key={category.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleCategorySelect(category)}
+                className={`
                 w-full text-left rounded-2xl overflow-hidden transition-all
                 ${selectedCategory?.id === category.id
-                  ? 'ring-2 ring-primary'
-                  : 'hover:shadow-lg'
-                }
+                    ? 'ring-2 ring-primary'
+                    : 'hover:shadow-lg'
+                  }
               `}
-            >
-              <div className={`bg-gradient-to-r ${category.color} p-4 text-white`}>
-                <div className="flex items-center gap-3">
-                  <div className="bg-white/20 p-2 rounded-xl">
-                    <CategoryIcon className="h-6 w-6" />
+              >
+                <div className={`bg-gradient-to-r ${category.color} p-4 text-white`}>
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/20 p-2 rounded-xl">
+                      <CategoryIcon className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg">{category.name}</h3>
+                      <p className="text-white/80 text-sm">{category.description}</p>
+                    </div>
+                    <ArrowRight className="h-5 w-5" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg">{category.name}</h3>
-                    <p className="text-white/80 text-sm">{category.description}</p>
+                </div>
+                <div className="bg-white p-3 border-x border-b border-gray-100">
+                  <div className="flex gap-2 flex-wrap">
+                    {category.templates.map((t) => {
+                      const TIcon = iconMap[t.icon] || FileText
+                      return (
+                        <span key={t.id} className="inline-flex items-center gap-1 text-xs text-body/60 bg-gray-100 px-2 py-1 rounded-full">
+                          <TIcon className="h-3 w-3" />
+                          {t.name}
+                        </span>
+                      )
+                    })}
                   </div>
-                  <ArrowRight className="h-5 w-5" />
                 </div>
-              </div>
-              <div className="bg-white p-3 border-x border-b border-gray-100">
-                <div className="flex gap-2 flex-wrap">
-                  {category.templates.map((t) => {
-                    const TIcon = iconMap[t.icon] || FileText
-                    return (
-                      <span key={t.id} className="inline-flex items-center gap-1 text-xs text-body/60 bg-gray-100 px-2 py-1 rounded-full">
-                        <TIcon className="h-3 w-3" />
-                        {t.name}
-                      </span>
-                    )
-                  })}
-                </div>
-              </div>
-            </motion.button>
-          )
-        })}
-      </div>
+              </motion.button>
+            )
+          })}
+        </div>
       )}
     </motion.div>
   )
@@ -792,7 +792,7 @@ export default function CreateContractPage() {
                 I have reviewed the contract
               </p>
               <p className="text-xs text-body/50 mt-1">
-                I confirm that I have read and understand all terms and conditions in this contract. 
+                I confirm that I have read and understand all terms and conditions in this contract.
                 I agree to proceed with identity verification and signing.
               </p>
             </div>
@@ -824,10 +824,12 @@ export default function CreateContractPage() {
         isOpen={showPdfPreview}
         onClose={() => setShowPdfPreview(false)}
         templateType={selectedTemplate?.id}
-        formData={formData}
+        formData={{ ...formData, creatorSignature }}
         creator={currentUser}
-        acceptee={formData.accepteeId ? users[formData.accepteeId] : null}
+        acceptee={allUsers.find(u => u.id === formData.accepteeId) || null}
         title={`Preview: ${formData.name || selectedTemplate?.name}`}
+        preGeneratedPdfUrl={generatedPdfUrl}
+        isLoading={isGeneratingPdf}
       />
     </motion.div>
   )
@@ -887,15 +889,14 @@ export default function CreateContractPage() {
             }}
             className="w-full"
           />
-          
+
           {/* Face Guide Overlay */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${
-              scanResult?.success ? 'border-green-500' :
-              scanResult?.message === 'Face mismatch' ? 'border-red-500' :
-              scanResult?.message === 'No face detected' ? 'border-yellow-500' :
-              'border-white/50'
-            }`} />
+            <div className={`w-48 h-60 border-4 rounded-full transition-colors duration-300 ${scanResult?.success ? 'border-green-500' :
+                scanResult?.message === 'Face mismatch' ? 'border-red-500' :
+                  scanResult?.message === 'No face detected' ? 'border-yellow-500' :
+                    'border-white/50'
+              }`} />
           </div>
 
           {/* Scanning Animation */}
@@ -910,11 +911,10 @@ export default function CreateContractPage() {
         </div>
 
         {/* Scan Status */}
-        <div className={`text-center p-3 rounded-xl mb-4 ${
-          scanResult?.success ? 'bg-green-50 text-green-700' :
-          scanResult?.message ? 'bg-yellow-50 text-yellow-700' :
-          'bg-blue-50 text-blue-700'
-        }`}>
+        <div className={`text-center p-3 rounded-xl mb-4 ${scanResult?.success ? 'bg-green-50 text-green-700' :
+            scanResult?.message ? 'bg-yellow-50 text-yellow-700' :
+              'bg-blue-50 text-blue-700'
+          }`}>
           {scanResult?.success ? (
             <div className="flex items-center justify-center gap-2">
               <CheckCircle className="h-5 w-5" />
@@ -1034,8 +1034,8 @@ export default function CreateContractPage() {
                   ${currentStep > step.id
                     ? 'bg-status-ongoing text-white'
                     : currentStep === step.id
-                    ? 'gradient-primary text-white'
-                    : 'bg-gray-200 text-body/40'
+                      ? 'gradient-primary text-white'
+                      : 'bg-gray-200 text-body/40'
                   }
                 `}
               >
@@ -1043,9 +1043,8 @@ export default function CreateContractPage() {
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`w-4 h-0.5 mx-0.5 ${
-                    currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
-                  }`}
+                  className={`w-4 h-0.5 mx-0.5 ${currentStep > step.id ? 'bg-status-ongoing' : 'bg-gray-200'
+                    }`}
                 />
               )}
             </div>
@@ -1075,7 +1074,7 @@ export default function CreateContractPage() {
               Back
             </Button>
           )}
-          
+
           {currentStep >= 2 && currentStep <= 3 && (
             <Button
               onClick={handleNext}
@@ -1090,7 +1089,7 @@ export default function CreateContractPage() {
               {currentStep === 3 ? (hasConsented ? 'Start Verification' : 'Please consent above') : 'Next'}
             </Button>
           )}
-          
+
           {currentStep === 6 && (
             <Button
               onClick={handleCreateContract}

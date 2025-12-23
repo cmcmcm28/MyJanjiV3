@@ -40,7 +40,7 @@ const baseTabs = [
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { currentUser, isAuthenticated } = useAuth()
+  const { currentUser, isAuthenticated, availableUsers } = useAuth()
   const { contracts, getAllContractsForUser, getPendingContractsForUser, stats, loadUserContracts } = useContracts()
   const [activeTab, setActiveTab] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -48,6 +48,16 @@ export default function DashboardPage() {
   const [showQRModal, setShowQRModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [activeFilter, setActiveFilter] = useState(null)
+
+  // Helper to get user details
+  const getUserById = (userId) => {
+    if (!userId) return null
+    // Try to find in availableUsers first
+    const user = availableUsers?.find(u => u.id === userId)
+    if (user) return user
+    // Fallback to dummy data lookup
+    return users[userId]
+  }
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -148,8 +158,15 @@ export default function DashboardPage() {
   }
 
   const handleDownloadPDF = async (contract) => {
-    const creator = users[contract.userId]
-    const acceptee = users[contract.accepteeId]
+    // If contract already has a PDF URL (from backend generation), open it
+    if (contract.pdfUrl) {
+      window.open(contract.pdfUrl, '_blank')
+      return
+    }
+
+    // Fallback to client-side generation
+    const creator = getUserById(contract.userId)
+    const acceptee = getUserById(contract.accepteeId)
     await pdfService.downloadContractPDF(contract, creator, acceptee)
   }
 
@@ -203,7 +220,7 @@ export default function DashboardPage() {
               <div className="w-16 h-20 bg-white rounded-lg border-2 border-blue-200 flex items-center justify-center shadow-sm">
                 <CreditCard className="h-8 w-8 text-blue-400" />
               </div>
-              
+
               {/* User info */}
               <div className="flex-1 min-w-0">
                 <h2 className="font-bold text-header truncate text-lg">{currentUser.name}</h2>

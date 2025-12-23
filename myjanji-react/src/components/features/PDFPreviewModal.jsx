@@ -79,7 +79,7 @@ export default function PDFPreviewModal({
     try {
       // Build placeholders from formData
       const placeholders = buildPlaceholders(formData, creator, acceptee)
-      
+
       console.log('Sending to backend:', { template_name: templateType, placeholders })
 
       const response = await fetch(`${BACKEND_URL}/preview_contract`, {
@@ -101,7 +101,7 @@ export default function PDFPreviewModal({
       // Get PDF blob and create URL
       const pdfBlob = await response.blob()
       const url = URL.createObjectURL(pdfBlob)
-      
+
       return { success: true, url }
     } catch (err) {
       console.error('Backend preview error:', err)
@@ -123,35 +123,39 @@ export default function PDFPreviewModal({
       CREATOR_IC: creator?.ic || formData?.creatorIc || '',
       ACCEPTEE_NAME: acceptee?.name || formData?.accepteeName || '',
       ACCEPTEE_IC: acceptee?.ic || formData?.accepteeIc || '',
-      
+
       // Dates
       START_DATE: formatDate(formData?.startDate),
       END_DATE: formatDate(formData?.endDate || formData?.returnDate || formData?.dueDate),
       RETURN_DATE: formatDate(formData?.returnDate || formData?.dueDate),
       DUE_DATE: formatDate(formData?.dueDate),
       CONTRACT_DATE: formatDate(new Date()),
-      
+
       // Items/Assets
       ITEM_NAME: formData?.item || formData?.itemName || formData?.name || '',
       ITEM_DESCRIPTION: formData?.description || formData?.itemDescription || '',
       ITEM_CONDITION: formData?.condition || formData?.itemCondition || 'Good',
       ITEM_VALUE: formData?.value || formData?.estimatedValue || '',
-      
+
       // Money
       AMOUNT: formData?.amount || formData?.loanAmount || '',
       INTEREST_RATE: formData?.interestRate || '0',
       PAYMENT_TERMS: formData?.paymentTerms || '',
-      
+
+      // Signatures - Pass raw base64 or URL
+      CREATOR_SIGNATURE: creator?.signature || formData?.creatorSignature || '',
+      ACCEPTEE_SIGNATURE: acceptee?.signature || formData?.accepteeSignature || '',
+
       // Vehicle specific
       VEHICLE_MODEL: formData?.vehicleModel || formData?.model || '',
       VEHICLE_PLATE: formData?.vehiclePlate || formData?.plateNumber || '',
       VEHICLE_COLOR: formData?.vehicleColor || formData?.color || '',
-      
+
       // Additional
       TERMS: formData?.terms || formData?.additionalTerms || '',
       NOTES: formData?.notes || '',
       LOCATION: formData?.location || '',
-      
+
       // Spread any additional form data
       ...formData,
     }
@@ -164,7 +168,7 @@ export default function PDFPreviewModal({
       const d = new Date(date)
       return d.toLocaleDateString('en-MY', {
         day: '2-digit',
-        month: '2-digit', 
+        month: '2-digit',
         year: 'numeric'
       })
     } catch {

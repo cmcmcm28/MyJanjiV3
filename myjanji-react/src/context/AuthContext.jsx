@@ -21,7 +21,8 @@ export function AuthProvider({ children }) {
           const transformed = data.map(user => ({
             id: user.user_id,
             name: user.name,
-            ic: user.ic_hash || '', // Note: This is a hash, not the actual IC
+            ic: user.user_id || '', // Use user_id as IC
+            nfcChipId: user.nfc_chip_id || null,
             avatar: user.avatar || '/images/default-avatar.png',
             email: user.email || '',
             phone: user.phone || '',
@@ -45,13 +46,14 @@ export function AuthProvider({ children }) {
     try {
       // Try to get user from Supabase
       const { data: supabaseUser, error } = await userService.getProfile(userId)
-      
+
       if (!error && supabaseUser) {
         // Transform Supabase user to match frontend structure
         const user = {
           id: supabaseUser.user_id,
           name: supabaseUser.name,
-          ic: supabaseUser.ic_hash || '',
+          ic: supabaseUser.user_id || '',
+          nfcChipId: supabaseUser.nfc_chip_id || null,
           avatar: supabaseUser.avatar || '/images/default-avatar.png',
           email: supabaseUser.email || '',
           phone: supabaseUser.phone || '',

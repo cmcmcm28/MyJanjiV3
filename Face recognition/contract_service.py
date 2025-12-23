@@ -5,7 +5,11 @@ import os
 import re
 import json
 import tempfile
+import io
+import base64
+import requests
 from docx import Document
+from docx.shared import Inches
 from docx2pdf import convert
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -74,49 +78,125 @@ def download_template(template_name: str) -> str:
     
     print(f"📥 Downloading template: {storage_path}")
     
-    # Download file
-    response = supabase.storage.from_(TEMPLATE_BUCKET).download(storage_path)
+    try:
+        # Try using signed URL (handles special characters better)
+        signed_url_response = supabase.storage.from_(TEMPLATE_BUCKET).create_signed_url(storage_path, 60)
+        if signed_url_response and 'signedURL' in signed_url_response:
+            url = signed_url_response['signedURL']
+            print(f"📡 Using signed URL")
+            
+            response = requests.get(url)
+            if response.status_code == 200:
+                # Save to local temp file
+                filename = os.path.basename(storage_path)
+                local_path = os.path.join(TEMP_FOLDER, filename)
+                with open(local_path, 'wb') as f:
+                    f.write(response.content)
+                
+                print(f"✅ Template saved to: {local_path}")
+                return local_path
+    except Exception as e:
+        print(f"⚠️ Signed URL failed: {e}")
     
-    # Save to local temp file (use just the filename, not the full path)
-    filename = os.path.basename(storage_path)
-    local_path = os.path.join(TEMP_FOLDER, filename)
-    with open(local_path, 'wb') as f:
-        f.write(response)
-    
-    print(f"✅ Template saved to: {local_path}")
-    return local_path
+    # Fallback: try direct download
+    try:
+        print(f"📡 Trying direct download...")
+        response = supabase.storage.from_(TEMPLATE_BUCKET).download(storage_path)
+        
+        # Save to local temp file
+        filename = os.path.basename(storage_path)
+        local_path = os.path.join(TEMP_FOLDER, filename)
+        with open(local_path, 'wb') as f:
+            f.write(response)
+        
+        print(f"✅ Template saved to: {local_path}")
+        return local_path
+    except Exception as e:
+        raise Exception(f"Failed to download template '{storage_path}': {e}")
+
+
+def fetch_image(image_source):
+    """
+    Download image from URL or decode base64.
+    Returns bytes stream (io.BytesIO) or None.
+    """
+    try:
+        if not image_source:
+            return None
+            
+        # Case 1: Base64 string
+        if isinstance(image_source, str) and image_source.startswith('data:image'):
+            # format: "data:image/png;base64,iVBQR..."
+            header, encoded = image_source.split(',', 1)
+            return io.BytesIO(base64.b64decode(encoded))
+            
+        # Case 2: URL
+        if isinstance(image_source, str) and (image_source.startswith('http://') or image_source.startswith('https://')):
+            response = requests.get(image_source, timeout=10)
+            if response.status_code == 200:
+                return io.BytesIO(response.content)
+                
+        return None
+    except Exception as e:
+        print(f"⚠️ Failed to fetch image: {e}")
+        return None
 
 
 def fill_template(doc_path: str, placeholders: dict) -> str:
     """
     Replace {{PLACEHOLDER}} with actual values in the .docx document.
+    Handles text replacement and image insertion for signatures.
     Returns path to the filled document.
     """
     print(f"📝 Filling template with {len(placeholders)} placeholders")
     
     doc = Document(doc_path)
     
-    # Replace placeholders in paragraphs
-    for paragraph in doc.paragraphs:
+    # Identify signature keys that should be treated as images
+    signature_keys = ['CREATOR_SIGNATURE', 'ACCEPTEE_SIGNATURE', 'SIGNATURE']
+    
+    def process_paragraph(paragraph):
         for key, value in placeholders.items():
             placeholder = f"{{{{{key}}}}}"  # {{KEY}}
+            
             if placeholder in paragraph.text:
-                # Replace in each run to preserve formatting
-                for run in paragraph.runs:
-                    if placeholder in run.text:
-                        run.text = run.text.replace(placeholder, str(value))
+                # Special handling for signatures (images)
+                if key in signature_keys and value:
+                    print(f"🖼️ Found signature placeholder: {key}")
+                    # Clear the placeholder text
+                    # We need to find the specific run containing the placeholder
+                    # Note: This simple replacement assumes placeholder is not split across runs
+                    # For a robust solution, we iterate runs.
+                    
+                    found = False
+                    for run in paragraph.runs:
+                        if placeholder in run.text:
+                            # Remove the placeholder text
+                            run.text = run.text.replace(placeholder, "")
+                            
+                            # Insert image
+                            img_stream = fetch_image(value)
+                            if img_stream:
+                                run.add_picture(img_stream, width=Inches(1.5))
+                                print(f"✅ Signature inserted for {key}")
+                                found = True
+                    
+                else:
+                    # Text replacement
+                    for run in paragraph.runs:
+                        if placeholder in run.text:
+                            run.text = run.text.replace(placeholder, str(value))
     
-    # Replace placeholders in tables
+    # Replace in paragraphs
+    for paragraph in doc.paragraphs:
+        process_paragraph(paragraph)
+    
+    # Replace in tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
-                    for key, value in placeholders.items():
-                        placeholder = f"{{{{{key}}}}}"
-                        if placeholder in paragraph.text:
-                            for run in paragraph.runs:
-                                if placeholder in run.text:
-                                    run.text = run.text.replace(placeholder, str(value))
+                    process_paragraph(paragraph)
     
     # Save filled document
     filled_path = doc_path.replace('.docx', '_filled.docx')
