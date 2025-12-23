@@ -65,7 +65,7 @@ const steps = [
 
 export default function CreateContractPage() {
   const navigate = useNavigate()
-  const { currentUser } = useAuth()
+  const { currentUser, availableUsers } = useAuth()
   const { addContract, updateContract } = useContracts()
   const webcamRef = useRef(null)
 
@@ -708,7 +708,7 @@ export default function CreateContractPage() {
         templateType={selectedTemplate?.id}
         formData={{ ...formData, creatorSignature }}
         creator={currentUser}
-        acceptee={allUsers.find(u => u.id === formData.accepteeId) || null}
+        acceptee={availableUsers?.find(u => u.id === formData.accepteeId) || users[formData.accepteeId] || null}
         title={`Preview: ${formData.name || selectedTemplate?.name}`}
         preGeneratedPdfUrl={generatedPdfUrl}
         isLoading={isGeneratingPdf}
