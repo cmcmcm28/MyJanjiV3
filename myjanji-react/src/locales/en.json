@@ -1,0 +1,36 @@
+{
+    "profile": {
+        "title": "Profile",
+        "digitalContractUser": "Digital Contract User",
+        "trustScore": "Trust Score",
+        "joined": "Joined",
+        "verifiedId": "Verified ID",
+        "contractStatus": "Contract Status",
+        "personalInfo": "Personal Information",
+        "securityVerification": "Security & Verification",
+        "icNumber": "IC Number",
+        "email": "Email",
+        "phone": "Phone",
+        "identityVerified": "Identity Verified",
+        "faceRecognitionEnabled": "Face recognition enabled",
+        "verified": "Verified",
+        "digitalSignature": "Digital Signature",
+        "biometricSignatureEnabled": "Biometric signature enabled",
+        "active": "Active",
+        "editProfile": "Edit Profile",
+        "settings": "Settings",
+        "tabs": {
+            "activity": "Activity",
+            "payments": "Payments"
+        },
+        "status": {
+            "pending": "Pending",
+            "ongoing": "Ongoing",
+            "completed": "Completed",
+            "broken": "Broken"
+        }
+    },
+    "common": {
+        "welcome": "Welcome"
+    }
+}

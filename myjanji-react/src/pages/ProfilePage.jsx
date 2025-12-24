@@ -21,8 +21,10 @@ import Button from '../components/ui/Button'
 import Gauge from '../components/ui/Gauge'
 import Timeline from '../components/ui/Timeline'
 import { calculateTrustScore, getTrustScoreColor, getContractStats, formatTrustScore } from '../utils/trustScore'
+import { useTranslation } from 'react-i18next'
 
 export default function ProfilePage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { currentUser, isAuthenticated } = useAuth()
   const { getAllContractsForUser, contracts } = useContracts()
@@ -51,7 +53,20 @@ export default function ProfilePage() {
 
   // Tabs state
   const [activeTab, setActiveTab] = useState('Activity')
-  const tabs = ['Activity', 'Payments']
+  const tabs = [t('profile.tabs.activity'), t('profile.tabs.payments')]
+
+  // Handle Tab Change (map UI label back to internal key if needed, or better yet use keys for logic)
+  // For simplicity, we'll just check against the translated string or maintain an index context. 
+  // Let's stick to using the string for now but be aware if language changes while on a tab.
+  // Ideally, use keys for state: 'activity', 'payments'
+
+  // Re-map internal keys to display labels
+  const tabKeys = ['activity', 'payments']
+  // We'll trust the index or map based on activeTab. 
+  // Actually, simpler: keep activeTab as key, render via t()
+
+  // Refactor activeTab to store key instead of display label
+  const [activeTabKey, setActiveTabKey] = useState('activity')
 
   // Generate activities from contracts (mock logic for demo)
   const activities = userContracts.slice(0, 5).map((contract, index) => {
@@ -121,17 +136,17 @@ export default function ProfilePage() {
               <div>
                 <h2 className="text-3xl font-bold text-header mb-1">{currentUser.name}</h2>
                 <p className="text-body/60 flex items-center justify-center md:justify-start gap-2">
-                  <span>Digital Contract User</span>
+                  <span>{t('profile.digitalContractUser')}</span>
                   <span className="w-1 h-1 rounded-full bg-body/30" />
                   <span>{currentUser.location || 'Malaysia'}</span>
                 </p>
 
                 <div className="flex items-center justify-center md:justify-start gap-3 mt-4">
                   <div className="px-3 py-1 rounded-full bg-surface-hover border border-border/50 text-xs font-medium text-body/70">
-                    Joined Mar 2024
+                    {t('profile.joined')} Mar 2024
                   </div>
                   <div className="px-3 py-1 rounded-full bg-surface-hover border border-border/50 text-xs font-medium text-body/70">
-                    Verified ID
+                    {t('profile.verifiedId')}
                   </div>
                 </div>
               </div>
@@ -139,7 +154,7 @@ export default function ProfilePage() {
 
             {/* Right: Trust Score */}
             <div className="flex flex-col items-center md:items-end">
-              <p className="text-sm font-medium text-body/50 mb-2 uppercase tracking-wider">Trust Score</p>
+              <p className="text-sm font-medium text-body/50 mb-2 uppercase tracking-wider">{t('profile.trustScore')}</p>
               <div className="flex items-center gap-1 mb-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
@@ -163,13 +178,13 @@ export default function ProfilePage() {
 
       {/* Contract Status - Gauges */}
       <div className="px-4 mt-6">
-        <h3 className="text-lg font-bold text-header mb-4 px-2">Contract Status</h3>
+        <h3 className="text-lg font-bold text-header mb-4 px-2">{t('profile.contractStatus')}</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card padding="none" className="py-6">
             <Gauge
               value={stats.pending || 0}
               max={Math.max(stats.total, 10)}
-              label="Pending"
+              label={t('profile.status.pending')}
               color="text-yellow-500"
               bgColor="text-yellow-100"
             />
@@ -178,7 +193,7 @@ export default function ProfilePage() {
             <Gauge
               value={stats.ongoing || 0}
               max={Math.max(stats.total, 10)}
-              label="Ongoing"
+              label={t('profile.status.ongoing')}
               color="text-blue-500"
               bgColor="text-blue-100"
             />
@@ -187,7 +202,7 @@ export default function ProfilePage() {
             <Gauge
               value={stats.completed || 0}
               max={Math.max(stats.total, 10)}
-              label="Completed"
+              label={t('profile.status.completed')}
               color="text-green-500"
               bgColor="text-green-100"
             />
@@ -196,7 +211,7 @@ export default function ProfilePage() {
             <Gauge
               value={stats.breached || 0}
               max={Math.max(stats.total, 10)}
-              label="Broken"
+              label={t('profile.status.broken')}
               color="text-red-500"
               bgColor="text-red-100"
             />
@@ -207,17 +222,17 @@ export default function ProfilePage() {
       {/* Tabs Navigation */}
       <div className="px-4 mt-6 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-6 border-b border-gray-100 min-w-max px-2">
-          {tabs.map((tab) => (
+          {tabKeys.map((key) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={key}
+              onClick={() => setActiveTabKey(key)}
               className={`
                 pb-3 text-sm font-medium transition-colors relative
-                ${activeTab === tab ? 'text-primary' : 'text-body/50 hover:text-body/80'}
+                ${activeTabKey === key ? 'text-primary' : 'text-body/50 hover:text-body/80'}
               `}
             >
-              {tab}
-              {activeTab === tab && (
+              {t(`profile.tabs.${key}`)}
+              {activeTabKey === key && (
                 <motion.div
                   layoutId="activeTab"
                   className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
@@ -231,11 +246,11 @@ export default function ProfilePage() {
       {/* Tab Content */}
       <div className="px-4 mt-6">
         <Card padding="lg">
-          {activeTab === 'Activity' ? (
+          {activeTabKey === 'activity' ? (
             <Timeline activities={activities} />
           ) : (
             <div className="text-center py-12 text-body/50">
-              <p className="mb-2">No data yet for {activeTab}</p>
+              <p className="mb-2">No data yet for {t(`profile.tabs.${activeTabKey}`)}</p>
               <p className="text-xs">Check back later for updates.</p>
             </div>
           )}
@@ -244,7 +259,7 @@ export default function ProfilePage() {
 
       {/* Personal Information */}
       <div className="px-4 mt-6">
-        <h3 className="text-lg font-bold text-header mb-3">Personal Information</h3>
+        <h3 className="text-lg font-bold text-header mb-3">{t('profile.personalInfo')}</h3>
         <Card padding="md">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -252,7 +267,7 @@ export default function ProfilePage() {
                 <CreditCard className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-body/50">IC Number</p>
+                <p className="text-xs text-body/50">{t('profile.icNumber')}</p>
                 <p className="font-medium text-header">{currentUser.ic}</p>
               </div>
             </div>
@@ -262,7 +277,7 @@ export default function ProfilePage() {
                 <Mail className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-body/50">Email</p>
+                <p className="text-xs text-body/50">{t('profile.email')}</p>
                 <p className="font-medium text-header">{currentUser.email}</p>
               </div>
             </div>
@@ -272,7 +287,7 @@ export default function ProfilePage() {
                 <Phone className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-body/50">Phone</p>
+                <p className="text-xs text-body/50">{t('profile.phone')}</p>
                 <p className="font-medium text-header">{currentUser.phone}</p>
               </div>
             </div>
@@ -282,7 +297,7 @@ export default function ProfilePage() {
 
       {/* Security & Verification */}
       <div className="px-4 mt-6">
-        <h3 className="text-lg font-bold text-header mb-3">Security & Verification</h3>
+        <h3 className="text-lg font-bold text-header mb-3">{t('profile.securityVerification')}</h3>
         <Card padding="md">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -291,12 +306,12 @@ export default function ProfilePage() {
                   <Shield className="h-5 w-5 text-green-600" strokeWidth={1.5} />
                 </div>
                 <div>
-                  <p className="font-medium text-header">Identity Verified</p>
-                  <p className="text-xs text-body/50">Face recognition enabled</p>
+                  <p className="font-medium text-header">{t('profile.identityVerified')}</p>
+                  <p className="text-xs text-body/50">{t('profile.faceRecognitionEnabled')}</p>
                 </div>
               </div>
               <span className="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-full font-medium">
-                Verified
+                {t('profile.verified')}
               </span>
             </div>
 
@@ -306,12 +321,12 @@ export default function ProfilePage() {
                   <FileText className="h-5 w-5 text-primary-mid" strokeWidth={1.5} />
                 </div>
                 <div>
-                  <p className="font-medium text-header">Digital Signature</p>
-                  <p className="text-xs text-body/50">Biometric signature enabled</p>
+                  <p className="font-medium text-header">{t('profile.digitalSignature')}</p>
+                  <p className="text-xs text-body/50">{t('profile.biometricSignatureEnabled')}</p>
                 </div>
               </div>
               <span className="text-xs bg-primary-mid/10 text-primary-mid px-3 py-1.5 rounded-full font-medium">
-                Active
+                {t('profile.active')}
               </span>
             </div>
           </div>
@@ -329,7 +344,7 @@ export default function ProfilePage() {
             alert('Edit profile feature coming soon!')
           }}
         >
-          Edit Profile
+          {t('profile.editProfile')}
         </Button>
         <Button
           fullWidth
@@ -337,7 +352,7 @@ export default function ProfilePage() {
           icon={Settings}
           onClick={() => navigate('/settings')}
         >
-          Settings
+          {t('profile.settings')}
         </Button>
       </div>
 

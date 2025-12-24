@@ -1,0 +1,36 @@
+{
+    "profile": {
+        "title": "Profil",
+        "digitalContractUser": "Pengguna Kontrak Digital",
+        "trustScore": "Skor Kepercayaan",
+        "joined": "Menyertai",
+        "verifiedId": "ID Disahkan",
+        "contractStatus": "Status Kontrak",
+        "personalInfo": "Maklumat Peribadi",
+        "securityVerification": "Keselamatan & Pengesahan",
+        "icNumber": "No. Kad Pengenalan",
+        "email": "Emel",
+        "phone": "Telefon",
+        "identityVerified": "Identiti Disahkan",
+        "faceRecognitionEnabled": "Pengecaman wajah diaktifkan",
+        "verified": "Disahkan",
+        "digitalSignature": "Tandatangan Digital",
+        "biometricSignatureEnabled": "Tandatangan biometrik diaktifkan",
+        "active": "Aktif",
+        "editProfile": "Edit Profil",
+        "settings": "Tetapan",
+        "tabs": {
+            "activity": "Aktiviti",
+            "payments": "Bayaran"
+        },
+        "status": {
+            "pending": "Pending",
+            "ongoing": "Sedang Jalan",
+            "completed": "Selesai",
+            "broken": "Langgar"
+        }
+    },
+    "common": {
+        "welcome": "Selamat Datang"
+    }
+}

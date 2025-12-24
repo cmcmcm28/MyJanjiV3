@@ -13,10 +13,12 @@
     "@react-pdf/renderer": "^4.3.1",
     "@supabase/supabase-js": "^2.89.0",
     "framer-motion": "^12.23.26",
+    "i18next": "^25.7.3",
     "lucide-react": "^0.561.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-i18next": "^16.5.0",
     "react-router-dom": "^7.10.1",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "react-webcam": "^7.2.0"
