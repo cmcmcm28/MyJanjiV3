@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  ScanFace, 
-  Fingerprint, 
-  Shield, 
-  CheckCircle, 
+import {
+  ScanFace,
+  Fingerprint,
+  Shield,
+  CheckCircle,
   ArrowLeft,
   Loader2,
-  AlertCircle 
+  AlertCircle
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import Card from '../components/ui/Card'
@@ -31,17 +31,22 @@ export default function BiometricLoginPage() {
     setVerificationResult(null)
 
     try {
-      // In a real app, the backend would identify who the face belongs to
-      // For demo, we simulate by trying to verify against all users
+      // Try to verify against each user's stored face embedding
+      // Stop as soon as we find a match
       let verified = false
       let foundUser = null
 
       for (const user of availableUsers) {
-        const result = await faceAuthService.verifyFace(user.id, imageData)
+        // Skip users without face embedding
+        if (!user.faceEmbedding) continue
+
+        // Use verifyLogin with stored embedding (faster - no DB lookup needed)
+        const result = await faceAuthService.verifyLogin(imageData, user.faceEmbedding)
+
         if (result.success) {
           verified = true
           foundUser = user
-          break
+          break // Stop immediately on first match
         }
       }
 
@@ -60,22 +65,14 @@ export default function BiometricLoginPage() {
           navigate('/dashboard')
         }, 2000)
       } else {
-        // Demo mode: Just pick the first user
-        const demoUser = availableUsers[0]
+        // No match found
         setVerificationResult({
-          success: true,
-          message: `Welcome back, ${demoUser.name}! (Demo)`,
+          success: false,
+          message: 'Face not recognized. Please try again.',
         })
-        setMatchedUser(demoUser)
-        setIsSuccess(true)
-        login(demoUser.id)
-        setFaceVerified()
-
-        setTimeout(() => {
-          navigate('/dashboard')
-        }, 2000)
       }
     } catch (error) {
+      console.error('Face verification error:', error)
       setVerificationResult({
         success: false,
         message: 'Verification failed. Please try again.',
@@ -201,7 +198,7 @@ export default function BiometricLoginPage() {
                 </div>
 
                 <WebcamCapture
-                  onCapture={() => {}}
+                  onCapture={() => { }}
                   onVerify={handleVerifyFace}
                   isVerifying={isVerifying}
                   verificationResult={verificationResult}
@@ -230,17 +227,16 @@ export default function BiometricLoginPage() {
                   animate={isVerifying ? { scale: [1, 1.1, 1] } : {}}
                   transition={{ repeat: Infinity, duration: 1.5 }}
                 >
-                  <div className={`w-24 h-24 rounded-full mx-auto mb-4 flex items-center justify-center ${
-                    isVerifying ? 'bg-primary/20' : 'bg-gray-100'
-                  }`}>
+                  <div className={`w-24 h-24 rounded-full mx-auto mb-4 flex items-center justify-center ${isVerifying ? 'bg-primary/20' : 'bg-gray-100'
+                    }`}>
                     <Fingerprint className={`h-12 w-12 ${isVerifying ? 'text-primary' : 'text-body/40'}`} />
                   </div>
                 </motion.div>
 
                 <h2 className="text-xl font-bold text-header mb-2">Fingerprint Login</h2>
                 <p className="text-body/60 text-sm mb-6">
-                  {isVerifying 
-                    ? 'Scanning fingerprint...' 
+                  {isVerifying
+                    ? 'Scanning fingerprint...'
                     : 'Touch the fingerprint sensor to authenticate'}
                 </p>
 

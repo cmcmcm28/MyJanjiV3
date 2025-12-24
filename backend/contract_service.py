@@ -10,6 +10,7 @@ import base64
 import requests
 from docx import Document
 from docx.shared import Inches
+from docx.enum.text import WD_COLOR_INDEX
 from docx2pdf import convert
 from supabase import create_client, Client
 
@@ -48,6 +49,7 @@ except Exception as e:
     print(f"Warning: Failed to load templates_config.json: {e}")
     TEMPLATE_CONFIG = {"categories": []}
 
+
 def get_template_mapping(template_id: str) -> dict:
     """Find mapping for a given template ID"""
     for category in TEMPLATE_CONFIG.get('categories', []):
@@ -56,23 +58,24 @@ def get_template_mapping(template_id: str) -> dict:
                 return template.get('mapping', {})
     return {}
 
+
 def map_placeholders(placeholders: dict, mapping: dict) -> dict:
     """
     Map frontend keys to Docx placeholders based on config.
     If a key is not in mapping, it is passed through as-is (fallback).
     """
     mapped_data = {}
-    
+
     # 1. Apply mapping
     for frontend_key, docx_key in mapping.items():
         if frontend_key in placeholders:
             mapped_data[docx_key] = placeholders[frontend_key]
-            
+
     # 2. Pass through any keys that didn't match mapping (in case frontend sends raw keys)
     for key, value in placeholders.items():
         if key not in mapping:
             mapped_data[key] = value
-            
+
     return mapped_data
 
 
@@ -204,17 +207,26 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
     doc = Document(doc_path)
 
     # Identify signature keys that should be treated as images (both upper and lowercase)
-    signature_keys = ['CREATOR_SIGNATURE', 'ACCEPTEE_SIGNATURE', 'SIGNATURE',
-                      'creator_signature', 'acceptee_signature', 'signature']
+    signature_keys = ['CREATOR_SIGNATURE', 'ACCEPTEE_SIGNATURE', 'ACCEPTOR_SIGNATURE', 'SIGNATURE',
+                      'creator_signature', 'acceptee_signature', 'acceptor_signature', 'signature']
+
+    # Keys that should be formatted with bold and yellow highlight (like creator name fields)
+    highlighted_keys = [
+        'ACCEPTEE_NAME', 'acceptee_name', 'ACCEPTOR_NAME', 'acceptor_name',
+        'ACCEPTEE_IC', 'acceptee_ic', 'ACCEPTOR_IC', 'acceptor_ic',
+        'acceptee_id_number', 'acceptor_id_number',
+        'ACCEPTOR_SIGNING_DATE', 'acceptor_signing_date',
+        'ACCEPTEE_SIGNING_DATE', 'acceptee_signing_date'
+    ]
 
     def process_paragraph(paragraph):
         # We invoke this for every placeholder.
         for key, value in placeholders.items():
             placeholder = f"{{{{{key}}}}}"  # {{KEY}}
-            
+
             # Quick check if placeholder exists in the full text at all
             if placeholder in paragraph.text:
-                
+
                 # Special handling for signatures (images)
                 if key in signature_keys and value:
                     print(f"Found signature placeholder: {key}")
@@ -227,27 +239,50 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
                                 run.add_picture(img_stream, width=Inches(1.5))
                                 print(f"Signature inserted for {key}")
                                 found_sig = True
-                    
-                    if not found_sig:
-                         # If signature placeholder is split across runs
-                         print(f"Signature placeholder {key} split across runs. clearing and appending.")
-                         paragraph.text = paragraph.text.replace(placeholder, "")
-                         run = paragraph.add_run()
-                         img_stream = fetch_image(value)
-                         if img_stream:
-                             run.add_picture(img_stream, width=Inches(1.5))
 
+                    if not found_sig:
+                        # If signature placeholder is split across runs
+                        print(
+                            f"Signature placeholder {key} split across runs. clearing and appending.")
+                        paragraph.text = paragraph.text.replace(
+                            placeholder, "")
+                        run = paragraph.add_run()
+                        img_stream = fetch_image(value)
+                        if img_stream:
+                            run.add_picture(img_stream, width=Inches(1.5))
+
+                elif key in highlighted_keys and value:
+                    # Bold + Yellow highlight for acceptee fields (same as creator fields)
+                    print(f"Applying bold + highlight to: {key}")
+                    replaced_in_run = False
+                    for run in paragraph.runs:
+                        if placeholder in run.text:
+                            run.text = run.text.replace(
+                                placeholder, str(value))
+                            run.bold = True
+                            run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+                            replaced_in_run = True
+
+                    if not replaced_in_run:
+                        # Split across runs - replace text and add new formatted run
+                        paragraph.text = paragraph.text.replace(
+                            placeholder, "")
+                        new_run = paragraph.add_run(str(value))
+                        new_run.bold = True
+                        new_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
                 else:
                     # Text replacement
                     replaced_in_run = False
                     for run in paragraph.runs:
                         if placeholder in run.text:
-                            run.text = run.text.replace(placeholder, str(value))
+                            run.text = run.text.replace(
+                                placeholder, str(value))
                             replaced_in_run = True
-                    
+
                     # If not found in any single run, it means it's split across runs
                     if not replaced_in_run:
-                        paragraph.text = paragraph.text.replace(placeholder, str(value))
+                        paragraph.text = paragraph.text.replace(
+                            placeholder, str(value))
 
     # Replace in paragraphs
     for paragraph in doc.paragraphs:
@@ -263,7 +298,7 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
     # Save filled document
     filled_path = doc_path.replace('.docx', '_filled.docx')
     doc.save(filled_path)
-    
+
     print(f"Filled template saved to: {filled_path}")
     return filled_path
 
@@ -328,6 +363,35 @@ def upload_pdf(pdf_path: str, contract_id: str) -> str:
     return public_url
 
 
+# Keys that should NOT be filled during initial contract creation
+# These are filled only when the creator/acceptor signs
+SIGNING_FIELDS_TO_EXCLUDE = [
+    # Creator signing fields
+    'creator_signature', 'CREATOR_SIGNATURE',
+    'creator_name', 'CREATOR_NAME',
+    'creator_id_number', 'CREATOR_ID_NUMBER', 'creator_ic', 'CREATOR_IC',
+    'signing_date', 'SIGNING_DATE', 'creator_signing_date', 'CREATOR_SIGNING_DATE',
+    # Acceptor signing fields
+    'acceptor_signature', 'ACCEPTOR_SIGNATURE', 'acceptee_signature', 'ACCEPTEE_SIGNATURE',
+    'acceptor_name', 'ACCEPTOR_NAME', 'acceptee_name', 'ACCEPTEE_NAME',
+    'acceptor_id_number', 'ACCEPTOR_ID_NUMBER', 'acceptor_ic', 'ACCEPTOR_IC',
+    'acceptee_id_number', 'ACCEPTEE_ID_NUMBER', 'acceptee_ic', 'ACCEPTEE_IC',
+    'acceptor_signing_date', 'ACCEPTOR_SIGNING_DATE', 'acceptee_signing_date', 'ACCEPTEE_SIGNING_DATE',
+]
+
+
+def exclude_signing_fields(placeholders: dict) -> dict:
+    """
+    Remove signing-related fields from placeholders.
+    These fields (creator name, IC, signature, date, and acceptor equivalents)
+    should remain as placeholders in the document until actual signing.
+    """
+    return {
+        key: value for key, value in placeholders.items()
+        if key not in SIGNING_FIELDS_TO_EXCLUDE
+    }
+
+
 def generate_contract(template_name: str, placeholders: dict, contract_id: str) -> dict:
     """
     Full workflow: download template -> fill placeholders -> convert to PDF -> upload.
@@ -339,10 +403,14 @@ def generate_contract(template_name: str, placeholders: dict, contract_id: str) 
         print(f"\nDEBUG: Template ID: {template_name}")
         print(f"DEBUG: Mapping Config: {mapping}")
         print(f"DEBUG: Raw Placeholders (Keys): {list(placeholders.keys())}")
-        
+
         mapped_placeholders = map_placeholders(placeholders, mapping)
-        
-        print(f"DEBUG: Mapped Placeholders: {mapped_placeholders}")
+
+        # Remove signing fields - these stay as placeholders until actual signing
+        mapped_placeholders = exclude_signing_fields(mapped_placeholders)
+
+        print(
+            f"DEBUG: Mapped Placeholders (after excluding signing fields): {mapped_placeholders}")
         print(f"Mapped placeholders for {template_name}")
 
         # Step 1: Download template
@@ -350,7 +418,7 @@ def generate_contract(template_name: str, placeholders: dict, contract_id: str) 
 
         # Step 2: Fill placeholders
         filled_path = fill_template(doc_path, mapped_placeholders)
-        
+
         # Step 3: Convert to PDF
         pdf_path = convert_to_pdf(filled_path)
 
@@ -403,6 +471,9 @@ def prepare_contract(template_name: str, placeholders: dict) -> dict:
         # Step 0: Map placeholders
         mapping = get_template_mapping(template_name)
         mapped_placeholders = map_placeholders(placeholders, mapping)
+
+        # Remove signing fields - these stay as placeholders until actual signing
+        mapped_placeholders = exclude_signing_fields(mapped_placeholders)
 
         # Step 1: Download template
         doc_path = download_template(template_name)
@@ -509,8 +580,8 @@ def generate_signed_contract(
         signature_path = save_signature_image(
             creator_signature_base64, f"sig_{contract_id}")
 
-        # Get current timestamp
-        signing_timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        # Get current timestamp in YYYY-MM-DD format
+        signing_timestamp = datetime.now().strftime("%Y-%m-%d")
 
         # Update placeholders with signature info
         signed_placeholders = {**placeholders}
@@ -542,8 +613,9 @@ def generate_signed_contract(
         # Apply mapping to ensure frontend keys match Word template placeholders
         mapping = get_template_mapping(template_name)
         mapped_placeholders = map_placeholders(signed_placeholders, mapping)
-        
-        print(f"DEBUG: Signed contract placeholders: {list(mapped_placeholders.keys())}")
+
+        print(
+            f"DEBUG: Signed contract placeholders: {list(mapped_placeholders.keys())}")
 
         # Fill with updated placeholders including signature
         filled_path = fill_template(doc_path, mapped_placeholders)
@@ -578,10 +650,14 @@ def preview_contract(template_name: str, placeholders: dict) -> str:
         mapping = get_template_mapping(template_name)
         print(f"DEBUG: Preview Mapping Config: {mapping}")
         print(f"DEBUG: Raw Preview Placeholders: {placeholders}")
-        
+
         mapped_placeholders = map_placeholders(placeholders, mapping)
-        print(f"DEBUG: Mapped Preview Placeholders: {mapped_placeholders}")
-        
+
+        # Remove signing fields - these stay as placeholders until actual signing
+        mapped_placeholders = exclude_signing_fields(mapped_placeholders)
+        print(
+            f"DEBUG: Mapped Preview Placeholders (after excluding signing fields): {mapped_placeholders}")
+
         doc_path = download_template(template_name)
         filled_path = fill_template(doc_path, mapped_placeholders)
         return filled_path
@@ -724,6 +800,13 @@ def finalize_contract(
         pdf_url = upload_contract_pdf(pdf_path, user_id, contract_id)
 
         # Step 3: Create contract record in database
+        # IMPORTANT: Save creator signature to form_data so it can be used when acceptor signs
+        form_data_with_signature = {**form_data}
+        if creator_signature:
+            form_data_with_signature['creator_signature'] = creator_signature
+        form_data_with_signature['creator_name'] = creator_name or ''
+        form_data_with_signature['creator_id_number'] = creator_ic or ''
+
         contract_data = {
             "contract_id": contract_id,
             "created_user_id": user_id,
@@ -732,7 +815,7 @@ def finalize_contract(
             "contract_topic": contract_topic,
             "status": "Pending",
             "template_type": template_type,
-            "form_data": form_data,
+            "form_data": form_data_with_signature,
             "pdf_url": pdf_url,
             "creator_nfc_verified": creator_nfc_verified,
             "creator_face_verified": creator_face_verified,
@@ -886,15 +969,24 @@ def sign_contract_acceptor(
 
         print(f"📋 Contract template: {template_type}")
 
-        # Step 2: Save acceptor signature to temp file
+        # Save acceptor signature to temp file
         acceptor_sig_path = save_signature_image(
             acceptor_signature_base64, f"acceptor_sig_{contract_id}")
 
-        # Get current timestamp
-        signing_timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        # Get current timestamp in YYYY-MM-DD format
+        signing_timestamp = datetime.now().strftime("%Y-%m-%d")
 
         # Step 3: Build complete placeholders with all details
         placeholders = {**form_data}
+
+        # IMPORTANT: Preserve creator signature from form_data if it exists
+        # The creator signature should have been saved during contract creation
+        creator_sig = form_data.get(
+            'creator_signature') or form_data.get('CREATOR_SIGNATURE')
+        if creator_sig:
+            print(f"📝 Preserving creator signature from form_data")
+            placeholders['CREATOR_SIGNATURE'] = creator_sig
+            placeholders['creator_signature'] = creator_sig
 
         # Add acceptor details - support both uppercase and lowercase
         placeholders['ACCEPTOR_NAME'] = acceptor_name
@@ -936,11 +1028,11 @@ def sign_contract_acceptor(
         new_pdf_url = update_contract_pdf(pdf_path, creator_id, contract_id)
 
         # Step 6: Update contract record
+        # Note: acceptee_signed_at column doesn't exist in current schema
         updates = {
             "status": "Ongoing",
             "acceptee_nfc_verified": acceptor_nfc_verified,
             "acceptee_face_verified": acceptor_face_verified,
-            "acceptee_signed_at": datetime.now().isoformat(),
             "pdf_url": new_pdf_url,
         }
 

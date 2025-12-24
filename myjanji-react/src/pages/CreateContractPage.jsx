@@ -688,6 +688,7 @@ export default function CreateContractPage() {
           formData={formData}
           handleChange={handleInputChange}
           acceptees={availableAcceptees}
+          currentUser={currentUser}
         />
       )}
 
@@ -697,6 +698,7 @@ export default function CreateContractPage() {
             formData={formData}
             handleChange={handleInputChange}
             acceptees={availableAcceptees}
+            currentUser={currentUser}
           />
         )
       }

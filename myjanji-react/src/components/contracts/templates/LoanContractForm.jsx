@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Input, { Select, Textarea } from '../../ui/Input'
 import Button from '../../ui/Button'
@@ -13,8 +13,21 @@ const steps = [
     { title: 'Payment Terms', description: 'Rental fees and schedule' },
 ]
 
-export default function LoanContractForm({ formData, handleChange, acceptees = [] }) {
+export default function LoanContractForm({ formData, handleChange, acceptees = [], currentUser = null }) {
     const [currentStep, setCurrentStep] = useState(0)
+
+    // Pre-fill lender information with current user's data
+    useEffect(() => {
+        if (currentUser) {
+            // Only pre-fill if fields are empty
+            if (!formData.creatorName && currentUser.name) {
+                handleChange('creatorName', currentUser.name)
+            }
+            if (!formData.creatorIdNumber && currentUser.ic) {
+                handleChange('creatorIdNumber', currentUser.ic)
+            }
+        }
+    }, [currentUser])
 
     const handleNext = () => {
         if (currentStep < steps.length - 1) {
