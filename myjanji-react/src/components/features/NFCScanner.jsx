@@ -19,6 +19,7 @@ export default function NFCScanner({
   description = 'Click Start, then place your MyKad on the R20C-USB reader',
   allowSkip = true,
   expectedChipId = null,
+  userName = null,
 }) {
   const [status, setStatus] = useState('idle') // idle, scanning, success, error, mismatch
   const [progress, setProgress] = useState(0)
@@ -337,12 +338,18 @@ export default function NFCScanner({
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
               <div className="flex items-center gap-2 text-green-700 mb-3">
                 <CheckCircle className="h-5 w-5" />
-                <span className="font-semibold">NFC Card Verified!</span>
+                <span className="font-semibold">NFC Verified</span>
               </div>
               <div className="space-y-2 text-sm">
+                {userName && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-body/60">Name</span>
+                    <span className="text-green-700 font-bold">{userName}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
-                  <span className="text-body/60">NFC Chip ID</span>
-                  <span className="font-mono text-xs text-green-700 bg-green-100 px-2 py-1 rounded">{scannedData.chipId}</span>
+                  <span className="text-body/60">Status</span>
+                  <span className="text-green-700 font-medium">Identity Confirmed ✓</span>
                 </div>
               </div>
             </div>
@@ -383,26 +390,15 @@ export default function NFCScanner({
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
               <div className="flex items-center gap-2 text-red-700 mb-3">
                 <AlertCircle className="h-5 w-5" />
-                <span className="font-semibold">Card Verification Failed</span>
+                <span className="font-semibold">Wrong MyKad Detected</span>
               </div>
-              <p className="text-sm text-red-600 mb-3">{errorMessage}</p>
-              {scannedData && (
-                <div className="text-left space-y-2 text-xs border-t border-red-200 pt-3 mt-3">
-                  <div className="text-red-600">
-                    <span className="text-red-500 font-medium block mb-1">Scanned NFC Chip ID:</span>
-                    <span className="font-mono bg-red-100 px-2 py-1 rounded block break-all">{scannedData.chipId}</span>
-                  </div>
-                  {expectedChipId && (
-                    <div className="text-red-600 pt-2 border-t border-red-200">
-                      <span className="text-red-500 font-medium block mb-1">Your Registered Chip ID:</span>
-                      <span className="font-mono bg-red-100 px-2 py-1 rounded block break-all">{expectedChipId}</span>
-                    </div>
-                  )}
-                </div>
+              <p className="text-sm text-red-600 mb-2">The MyKad you scanned is not registered to your account.</p>
+              {userName && (
+                <p className="text-sm text-red-700 font-medium">Please tap the MyKad belonging to: {userName}</p>
               )}
             </div>
             <p className="text-sm text-body/60 mb-4">
-              Please scan the MyKad that is registered to your account.
+              Make sure you are using your own registered MyKad.
             </p>
             <Button onClick={handleRetry} variant="outline" icon={Nfc}>
               Scan Again

@@ -941,6 +941,7 @@ export default function CreateContractPage() {
           title="Verify Your Identity"
           description="Scan your MyKad NFC chip to verify your identity before signing"
           expectedChipId={currentUser?.nfcChipId}
+          userName={currentUser?.name}
         />
       </Card>
     </motion.div>

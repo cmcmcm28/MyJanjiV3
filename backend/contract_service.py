@@ -212,9 +212,17 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
 
     # Keys that should be formatted with bold and yellow highlight (like creator name fields)
     highlighted_keys = [
+        # Body acceptee fields
         'ACCEPTEE_NAME', 'acceptee_name', 'ACCEPTOR_NAME', 'acceptor_name',
         'ACCEPTEE_IC', 'acceptee_ic', 'ACCEPTOR_IC', 'acceptor_ic',
         'acceptee_id_number', 'acceptor_id_number',
+        # Signature section fields
+        'creator_signature_name', 'CREATOR_SIGNATURE_NAME',
+        'creator_signature_id', 'CREATOR_SIGNATURE_ID',
+        'creator_signature_date', 'CREATOR_SIGNATURE_DATE',
+        'acceptee_signature_name', 'ACCEPTEE_SIGNATURE_NAME', 'acceptor_signature_name', 'ACCEPTOR_SIGNATURE_NAME',
+        'acceptee_signature_id', 'ACCEPTEE_SIGNATURE_ID', 'acceptor_signature_id', 'ACCEPTOR_SIGNATURE_ID',
+        'acceptee_signature_date', 'ACCEPTEE_SIGNATURE_DATE', 'acceptor_signature_date', 'ACCEPTOR_SIGNATURE_DATE',
         'ACCEPTOR_SIGNING_DATE', 'acceptor_signing_date',
         'ACCEPTEE_SIGNING_DATE', 'acceptee_signing_date'
     ]
@@ -257,19 +265,42 @@ def fill_template(doc_path: str, placeholders: dict) -> str:
                     replaced_in_run = False
                     for run in paragraph.runs:
                         if placeholder in run.text:
+                            # Preserve original font properties
+                            original_font_name = run.font.name
+                            original_font_size = run.font.size
+
                             run.text = run.text.replace(
-                                placeholder, str(value))
+                                # Convert to uppercase like creator name
+                                placeholder, str(value).upper())
                             run.bold = True
                             run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+                            # Restore font properties to match original
+                            if original_font_name:
+                                run.font.name = original_font_name
+                            if original_font_size:
+                                run.font.size = original_font_size
                             replaced_in_run = True
 
                     if not replaced_in_run:
-                        # Split across runs - replace text and add new formatted run
+                        # Split across runs - get font from first run if available
+                        original_font_name = None
+                        original_font_size = None
+                        if paragraph.runs:
+                            first_run = paragraph.runs[0]
+                            original_font_name = first_run.font.name
+                            original_font_size = first_run.font.size
+
                         paragraph.text = paragraph.text.replace(
                             placeholder, "")
-                        new_run = paragraph.add_run(str(value))
+                        new_run = paragraph.add_run(
+                            str(value).upper())  # Convert to uppercase
                         new_run.bold = True
                         new_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+                        # Apply original font properties
+                        if original_font_name:
+                            new_run.font.name = original_font_name
+                        if original_font_size:
+                            new_run.font.size = original_font_size
                 else:
                     # Text replacement
                     replaced_in_run = False
@@ -364,18 +395,20 @@ def upload_pdf(pdf_path: str, contract_id: str) -> str:
 
 
 # Keys that should NOT be filled during initial contract creation
-# These are filled only when the creator/acceptor signs
+# These are the SIGNATURE SECTION fields - filled only when the creator/acceptor signs
+# Note: Body placeholders like creator_name, acceptee_name ARE filled during creation
 SIGNING_FIELDS_TO_EXCLUDE = [
-    # Creator signing fields
+    # Creator signature section fields (filled when creator signs)
     'creator_signature', 'CREATOR_SIGNATURE',
-    'creator_name', 'CREATOR_NAME',
-    'creator_id_number', 'CREATOR_ID_NUMBER', 'creator_ic', 'CREATOR_IC',
+    'creator_signature_name', 'CREATOR_SIGNATURE_NAME',
+    'creator_signature_id', 'CREATOR_SIGNATURE_ID',
+    'creator_signature_date', 'CREATOR_SIGNATURE_DATE',
     'signing_date', 'SIGNING_DATE', 'creator_signing_date', 'CREATOR_SIGNING_DATE',
-    # Acceptor signing fields
+    # Acceptor/Acceptee signature section fields (filled when acceptee signs)
     'acceptor_signature', 'ACCEPTOR_SIGNATURE', 'acceptee_signature', 'ACCEPTEE_SIGNATURE',
-    'acceptor_name', 'ACCEPTOR_NAME', 'acceptee_name', 'ACCEPTEE_NAME',
-    'acceptor_id_number', 'ACCEPTOR_ID_NUMBER', 'acceptor_ic', 'ACCEPTOR_IC',
-    'acceptee_id_number', 'ACCEPTEE_ID_NUMBER', 'acceptee_ic', 'ACCEPTEE_IC',
+    'acceptor_signature_name', 'ACCEPTOR_SIGNATURE_NAME', 'acceptee_signature_name', 'ACCEPTEE_SIGNATURE_NAME',
+    'acceptor_signature_id', 'ACCEPTOR_SIGNATURE_ID', 'acceptee_signature_id', 'ACCEPTEE_SIGNATURE_ID',
+    'acceptor_signature_date', 'ACCEPTOR_SIGNATURE_DATE', 'acceptee_signature_date', 'ACCEPTEE_SIGNATURE_DATE',
     'acceptor_signing_date', 'ACCEPTOR_SIGNING_DATE', 'acceptee_signing_date', 'ACCEPTEE_SIGNING_DATE',
 ]
 
@@ -580,8 +613,8 @@ def generate_signed_contract(
         signature_path = save_signature_image(
             creator_signature_base64, f"sig_{contract_id}")
 
-        # Get current timestamp in YYYY-MM-DD format
-        signing_timestamp = datetime.now().strftime("%Y-%m-%d")
+        # Get current timestamp with date and time (YYYY-MM-DD HH:MM:SS)
+        signing_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Update placeholders with signature info
         signed_placeholders = {**placeholders}
@@ -600,7 +633,15 @@ def generate_signed_contract(
         signed_placeholders['CREATOR_SIGNING_DATE'] = signing_timestamp
         signed_placeholders['creator_signing_date'] = signing_timestamp
 
-        # Creator name and IC
+        # Creator signature section fields (new placeholders from template)
+        signed_placeholders['creator_signature_name'] = creator_name
+        signed_placeholders['CREATOR_SIGNATURE_NAME'] = creator_name
+        signed_placeholders['creator_signature_id'] = creator_ic
+        signed_placeholders['CREATOR_SIGNATURE_ID'] = creator_ic
+        signed_placeholders['creator_signature_date'] = signing_timestamp
+        signed_placeholders['CREATOR_SIGNATURE_DATE'] = signing_timestamp
+
+        # Legacy creator name/IC fields (for backward compatibility)
         signed_placeholders['CREATOR_NAME'] = creator_name
         signed_placeholders['creator_name'] = creator_name
         signed_placeholders['CREATOR_IC'] = creator_ic
@@ -800,12 +841,20 @@ def finalize_contract(
         pdf_url = upload_contract_pdf(pdf_path, user_id, contract_id)
 
         # Step 3: Create contract record in database
-        # IMPORTANT: Save creator signature to form_data so it can be used when acceptor signs
+        # IMPORTANT: Save creator signature and signature section fields to form_data
+        # so they can be used when acceptor signs
+        from datetime import datetime as dt
+        creator_signing_timestamp = dt.now().strftime("%Y-%m-%d %H:%M:%S")
+
         form_data_with_signature = {**form_data}
         if creator_signature:
             form_data_with_signature['creator_signature'] = creator_signature
         form_data_with_signature['creator_name'] = creator_name or ''
         form_data_with_signature['creator_id_number'] = creator_ic or ''
+        # Save signature section fields for when acceptor signs and PDF is regenerated
+        form_data_with_signature['creator_signature_name'] = creator_name or ''
+        form_data_with_signature['creator_signature_id'] = creator_ic or ''
+        form_data_with_signature['creator_signature_date'] = creator_signing_timestamp
 
         contract_data = {
             "contract_id": contract_id,
@@ -973,8 +1022,8 @@ def sign_contract_acceptor(
         acceptor_sig_path = save_signature_image(
             acceptor_signature_base64, f"acceptor_sig_{contract_id}")
 
-        # Get current timestamp in YYYY-MM-DD format
-        signing_timestamp = datetime.now().strftime("%Y-%m-%d")
+        # Get current timestamp with date and time (YYYY-MM-DD HH:MM:SS)
+        signing_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Step 3: Build complete placeholders with all details
         placeholders = {**form_data}
@@ -987,6 +1036,27 @@ def sign_contract_acceptor(
             print(f"📝 Preserving creator signature from form_data")
             placeholders['CREATOR_SIGNATURE'] = creator_sig
             placeholders['creator_signature'] = creator_sig
+
+        # Preserve creator signature section fields (name, id, date)
+        creator_sig_name = form_data.get(
+            'creator_signature_name') or form_data.get('CREATOR_SIGNATURE_NAME')
+        creator_sig_id = form_data.get(
+            'creator_signature_id') or form_data.get('CREATOR_SIGNATURE_ID')
+        creator_sig_date = form_data.get(
+            'creator_signature_date') or form_data.get('CREATOR_SIGNATURE_DATE')
+
+        if creator_sig_name:
+            print(f"📝 Preserving creator signature name: {creator_sig_name}")
+            placeholders['creator_signature_name'] = creator_sig_name
+            placeholders['CREATOR_SIGNATURE_NAME'] = creator_sig_name
+        if creator_sig_id:
+            print(f"📝 Preserving creator signature id: {creator_sig_id}")
+            placeholders['creator_signature_id'] = creator_sig_id
+            placeholders['CREATOR_SIGNATURE_ID'] = creator_sig_id
+        if creator_sig_date:
+            print(f"📝 Preserving creator signature date: {creator_sig_date}")
+            placeholders['creator_signature_date'] = creator_sig_date
+            placeholders['CREATOR_SIGNATURE_DATE'] = creator_sig_date
 
         # Add acceptor details - support both uppercase and lowercase
         placeholders['ACCEPTOR_NAME'] = acceptor_name
@@ -1016,6 +1086,20 @@ def sign_contract_acceptor(
         placeholders['acceptor_signing_date'] = signing_timestamp
         placeholders['ACCEPTEE_SIGNING_DATE'] = signing_timestamp
         placeholders['acceptee_signing_date'] = signing_timestamp
+
+        # Acceptee signature section fields (new placeholders from template)
+        placeholders['acceptee_signature_name'] = acceptor_name
+        placeholders['ACCEPTEE_SIGNATURE_NAME'] = acceptor_name
+        placeholders['acceptor_signature_name'] = acceptor_name
+        placeholders['ACCEPTOR_SIGNATURE_NAME'] = acceptor_name
+        placeholders['acceptee_signature_id'] = acceptor_ic
+        placeholders['ACCEPTEE_SIGNATURE_ID'] = acceptor_ic
+        placeholders['acceptor_signature_id'] = acceptor_ic
+        placeholders['ACCEPTOR_SIGNATURE_ID'] = acceptor_ic
+        placeholders['acceptee_signature_date'] = signing_timestamp
+        placeholders['ACCEPTEE_SIGNATURE_DATE'] = signing_timestamp
+        placeholders['acceptor_signature_date'] = signing_timestamp
+        placeholders['ACCEPTOR_SIGNATURE_DATE'] = signing_timestamp
 
         print(f"📝 Filled {len(placeholders)} placeholders")
 
