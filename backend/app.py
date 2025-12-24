@@ -381,6 +381,156 @@ def verify_login():
         return response, 500
 
 
+@app.route('/identify_face', methods=['POST', 'OPTIONS'])
+def identify_face():
+    """
+    Identify user from face in a SINGLE API call.
+    This replaces the frontend loop through all users.
+
+    Receives: image (base64)
+    Returns: matched user info or error
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add(
+                'Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            return response
+
+        data = request.json
+        if not data:
+            response = jsonify(
+                {"success": False, "message": "No data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        image_data = data.get('image', '')
+        if not image_data:
+            response = jsonify(
+                {"success": False, "message": "No image data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        # Decode base64 image
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+
+        try:
+            decoded_image = base64.b64decode(image_data)
+        except Exception as decode_error:
+            response = jsonify(
+                {"success": False, "message": f"Failed to decode image: {decode_error}"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        np_arr = np.frombuffer(decoded_image, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        del decoded_image, np_arr
+        gc.collect()
+
+        if frame is None:
+            response = jsonify(
+                {"success": False, "message": "Failed to decode image"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        # Generate embedding from camera frame
+        try:
+            camera_embedding = face_service.process_frame_for_embedding(frame)
+            del frame
+            gc.collect()
+        except Exception as embed_error:
+            if 'frame' in locals():
+                del frame
+            gc.collect()
+            response = jsonify(
+                {"success": False, "message": f"No face detected: {embed_error}"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        if camera_embedding is None:
+            response = jsonify(
+                {"success": False, "message": "No face detected in image"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        # Fetch all users with face embeddings from Supabase
+        try:
+            supabase = contract_service.get_supabase_client()
+            result = supabase.table('users').select(
+                'user_id, name, email, phone, nfc_chip_id, face_embedding').not_.is_('face_embedding', 'null').execute()
+            users = result.data if result.data else []
+            print(
+                f"🔍 Checking against {len(users)} users with face embeddings")
+        except Exception as db_error:
+            print(f"❌ Database error: {db_error}")
+            response = jsonify(
+                {"success": False, "message": f"Database error: {db_error}"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 500
+
+        # Compare against all user embeddings and find best match
+        best_match = None
+        best_score = 0
+        best_distance = float('inf')
+
+        for user in users:
+            stored_embedding = user.get('face_embedding')
+            if not stored_embedding:
+                continue
+
+            is_match, score, distance = face_service.compare_embeddings(
+                stored_embedding, camera_embedding
+            )
+
+            # Track best match (even if below threshold, for debugging)
+            if distance < best_distance:
+                best_distance = distance
+                best_score = score
+                if is_match:
+                    best_match = user
+
+        del camera_embedding
+        gc.collect()
+
+        if best_match:
+            print(
+                f"✅ Face identified: {best_match['name']} (Score: {best_score}%)")
+            response = jsonify({
+                "success": True,
+                "user": {
+                    "id": best_match['user_id'],
+                    "name": best_match['name'],
+                    "email": best_match.get('email', ''),
+                    "phone": best_match.get('phone', ''),
+                    "nfcChipId": best_match.get('nfc_chip_id', ''),
+                },
+                "score": best_score,
+                "message": f"Welcome back, {best_match['name']}!"
+            })
+        else:
+            print(f"❌ No matching face found. Best score: {best_score}%")
+            response = jsonify({
+                "success": False,
+                "message": "Face not recognized. Please try again.",
+                "best_score": best_score
+            })
+
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        print(f"Error in identify_face: {e}")
+        import traceback
+        traceback.print_exc()
+        gc.collect()
+        response = jsonify({"success": False, "message": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
 @app.route('/generate_contract', methods=['POST', 'OPTIONS'])
 def generate_contract():
     """
@@ -483,7 +633,8 @@ def preview_contract():
         print(f"Previewing contract: {template_name}")
 
         # Use preview_contract which includes placeholder mapping
-        filled_path = contract_service.preview_contract(template_name, placeholders)
+        filled_path = contract_service.preview_contract(
+            template_name, placeholders)
 
         # Convert to PDF
         pdf_path = contract_service.convert_to_pdf(filled_path)
@@ -769,6 +920,51 @@ def sign_contract():
         print(f"Error signing contract: {e}")
         import traceback
         traceback.print_exc()
+        response = jsonify({"status": "error", "message": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+@app.route('/admin/clear_cache', methods=['POST'])
+def clear_template_cache():
+    """Admin endpoint to clear template cache (forces re-download on next use)"""
+    try:
+        contract_service.clear_template_cache()
+        response = jsonify({
+            "status": "success",
+            "message": "Template cache cleared successfully"
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+    except Exception as e:
+        response = jsonify({"status": "error", "message": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+@app.route('/admin/cache_status', methods=['GET'])
+def get_cache_status():
+    """Admin endpoint to check template cache status"""
+    try:
+        cache_info = []
+        for path, (data, timestamp) in contract_service.TEMPLATE_CACHE.items():
+            age = time.time() - timestamp
+            cache_info.append({
+                "template": path,
+                "size_bytes": len(data),
+                "age_seconds": round(age, 1),
+                "expires_in": round(contract_service.CACHE_EXPIRY_SECONDS - age, 1)
+            })
+
+        response = jsonify({
+            "status": "success",
+            "cached_templates": len(cache_info),
+            "cache_expiry_seconds": contract_service.CACHE_EXPIRY_SECONDS,
+            "templates": cache_info
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+    except Exception as e:
         response = jsonify({"status": "error", "message": str(e)})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500

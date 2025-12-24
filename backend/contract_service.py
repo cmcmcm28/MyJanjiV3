@@ -8,6 +8,7 @@ import tempfile
 import io
 import base64
 import requests
+import time
 from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_COLOR_INDEX
@@ -28,6 +29,44 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 TEMPLATE_BUCKET = "contract_templates"   # Bucket for .docx templates
 PDF_BUCKET = "contract-pdf"              # Bucket for generated PDFs
 GENERATED_FOLDER = "generated"
+
+# ============================================
+# TEMPLATE CACHE - Store downloaded templates in memory
+# ============================================
+TEMPLATE_CACHE = {}  # { "storage_path": (file_bytes, timestamp) }
+CACHE_EXPIRY_SECONDS = 3600  # 1 hour cache expiry
+
+
+def get_cached_template(storage_path: str):
+    """
+    Get template from cache if available and not expired.
+    Returns (bytes, True) if cache hit, (None, False) if cache miss.
+    """
+    if storage_path in TEMPLATE_CACHE:
+        cached_bytes, cached_time = TEMPLATE_CACHE[storage_path]
+        age = time.time() - cached_time
+        if age < CACHE_EXPIRY_SECONDS:
+            print(f"✅ Cache HIT for '{storage_path}' (age: {age:.1f}s)")
+            return cached_bytes, True
+        else:
+            print(f"⏰ Cache EXPIRED for '{storage_path}' (age: {age:.1f}s)")
+            del TEMPLATE_CACHE[storage_path]
+    return None, False
+
+
+def set_cached_template(storage_path: str, file_bytes: bytes):
+    """Store template bytes in cache with current timestamp."""
+    TEMPLATE_CACHE[storage_path] = (file_bytes, time.time())
+    print(f"💾 Cached template: '{storage_path}' ({len(file_bytes)} bytes)")
+
+
+def clear_template_cache():
+    """Clear all cached templates (useful for admin/debug)."""
+    TEMPLATE_CACHE.clear()
+    print("🗑️ Template cache cleared")
+
+
+# ============================================
 
 # Template ID to file path mapping (loaded from config.json or hardcoded fallback)
 TEMPLATE_PATHS = {
@@ -119,16 +158,32 @@ def get_template_path(template_id: str) -> str:
 
 def download_template(template_name: str) -> str:
     """
-    Download .docx template from Supabase Storage.
+    Download .docx template from Supabase Storage (with caching).
     Accepts template ID (e.g., 'ITEM_BORROW') or full path.
     Returns local file path.
-    """
-    supabase = get_supabase_client()
 
+    Caching: Templates are cached in memory for 1 hour to avoid
+    repeated downloads of the same template file.
+    """
     # Resolve template ID to storage path
     storage_path = get_template_path(template_name)
 
-    print(f"Downloading template: {storage_path}")
+    # Check cache first
+    cached_bytes, cache_hit = get_cached_template(storage_path)
+
+    if cache_hit:
+        # Use cached template - save to local file and return
+        filename = os.path.basename(storage_path)
+        local_path = os.path.join(TEMP_FOLDER, filename)
+        with open(local_path, 'wb') as f:
+            f.write(cached_bytes)
+        return local_path
+
+    # Cache miss - download from Supabase
+    supabase = get_supabase_client()
+    print(f"📥 Downloading template: {storage_path}")
+
+    file_bytes = None
 
     try:
         # Try using signed URL (handles special characters better)
@@ -140,33 +195,34 @@ def download_template(template_name: str) -> str:
 
             response = requests.get(url)
             if response.status_code == 200:
-                # Save to local temp file
-                filename = os.path.basename(storage_path)
-                local_path = os.path.join(TEMP_FOLDER, filename)
-                with open(local_path, 'wb') as f:
-                    f.write(response.content)
-
-                print(f"Template saved to: {local_path}")
-                return local_path
+                file_bytes = response.content
     except Exception as e:
         print(f"Signed URL failed: {e}")
 
     # Fallback: try direct download
-    try:
-        print(f"Trying direct download...")
-        response = supabase.storage.from_(
-            TEMPLATE_BUCKET).download(storage_path)
+    if file_bytes is None:
+        try:
+            print(f"Trying direct download...")
+            file_bytes = supabase.storage.from_(
+                TEMPLATE_BUCKET).download(storage_path)
+        except Exception as e:
+            raise Exception(
+                f"Failed to download template '{storage_path}': {e}")
 
-        # Save to local temp file
-        filename = os.path.basename(storage_path)
-        local_path = os.path.join(TEMP_FOLDER, filename)
-        with open(local_path, 'wb') as f:
-            f.write(response)
+    if file_bytes is None:
+        raise Exception(f"Failed to download template '{storage_path}'")
 
-        print(f"Template saved to: {local_path}")
-        return local_path
-    except Exception as e:
-        raise Exception(f"Failed to download template '{storage_path}': {e}")
+    # Cache the downloaded template
+    set_cached_template(storage_path, file_bytes)
+
+    # Save to local temp file
+    filename = os.path.basename(storage_path)
+    local_path = os.path.join(TEMP_FOLDER, filename)
+    with open(local_path, 'wb') as f:
+        f.write(file_bytes)
+
+    print(f"Template saved to: {local_path}")
+    return local_path
 
 
 def fetch_image(image_source):

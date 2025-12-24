@@ -25,6 +25,7 @@ import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import QRCodeDisplay from '../components/features/QRCodeDisplay'
 import pdfService from '../services/pdfService'
+import { ContractsPageSkeleton } from '../components/ui/Skeleton'
 
 const statusTabs = [
   { id: 'all', label: 'All', icon: FileText },
@@ -37,7 +38,7 @@ const statusTabs = [
 export default function ContractsPage() {
   const navigate = useNavigate()
   const { currentUser, isAuthenticated, availableUsers } = useAuth()
-  const { contracts, getAllContractsForUser, loadUserContracts } = useContracts()
+  const { contracts, getAllContractsForUser, loadUserContracts, loading } = useContracts()
   const [activeTab, setActiveTab] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContract, setSelectedContract] = useState(null)
@@ -154,6 +155,19 @@ export default function ContractsPage() {
   }
 
   if (!currentUser) return null
+
+  // Show skeleton while loading contracts
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <Header title="Contracts" showLogout />
+        <div className="mt-4">
+          <ContractsPageSkeleton />
+        </div>
+        <BottomNav />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">

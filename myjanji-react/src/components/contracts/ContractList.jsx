@@ -1,8 +1,20 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import ContractCard from './ContractCard'
 import { FileX } from 'lucide-react'
+import { SkeletonContractList } from '../ui/Skeleton'
 
-export default function ContractList({ contracts, onContractClick, emptyMessage = 'No contracts found' }) {
+export default function ContractList({
+  contracts,
+  onContractClick,
+  emptyMessage = 'No contracts found',
+  loading = false,
+  skeletonCount = 3
+}) {
+  // Show skeleton while loading
+  if (loading) {
+    return <SkeletonContractList count={skeletonCount} />
+  }
+
   if (!contracts || contracts.length === 0) {
     return (
       <motion.div

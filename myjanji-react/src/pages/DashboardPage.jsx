@@ -35,6 +35,7 @@ import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import QRCodeDisplay from '../components/features/QRCodeDisplay'
 import pdfService from '../services/pdfService'
+import { DashboardSkeleton } from '../components/ui/Skeleton'
 
 // Helper to get greeting based on time
 const getGreeting = () => {
@@ -66,7 +67,7 @@ const getDaysUntil = (date) => {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { currentUser, isAuthenticated, availableUsers } = useAuth()
-  const { contracts, getAllContractsForUser, getPendingContractsForUser, stats, loadUserContracts } = useContracts()
+  const { contracts, getAllContractsForUser, getPendingContractsForUser, stats, loadUserContracts, loading } = useContracts()
   const [activeTab, setActiveTab] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContract, setSelectedContract] = useState(null)
@@ -187,6 +188,19 @@ export default function DashboardPage() {
   }
 
   if (!currentUser) return null
+
+  // Show skeleton while loading contracts
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <Header title="MyJanji" showLogout />
+        <div className="mt-4">
+          <DashboardSkeleton />
+        </div>
+        <BottomNav />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">

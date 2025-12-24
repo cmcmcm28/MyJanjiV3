@@ -37,7 +37,8 @@ export function ContractProvider({ children }) {
   // Load contracts for a specific user
   const loadUserContracts = useCallback(async (userId) => {
     if (!userId) return
-    
+
+    setLoading(true)
     try {
       const { data, error } = await contractService.getUserContracts(userId)
       if (!error && data) {
@@ -56,6 +57,8 @@ export function ContractProvider({ children }) {
         c => c.userId === userId || c.accepteeId === userId
       )
       setContracts(userContracts)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -76,7 +79,7 @@ export function ContractProvider({ children }) {
       }
 
       const { data, error } = await contractService.createContract(contractData)
-      
+
       if (!error && data) {
         // Transform database response to frontend structure
         const newContract = {
@@ -119,16 +122,16 @@ export function ContractProvider({ children }) {
   const updateContract = useCallback(async (contractId, updates) => {
     try {
       const { data, error } = await contractService.updateContract(contractId, updates)
-      
+
       if (!error && data) {
         // Update local state with transformed data
-        setContracts(prev => 
+        setContracts(prev =>
           prev.map(c => c.id === contractId ? data : c)
         )
         return data
       } else {
         // Fallback to local state update
-        setContracts(prev => 
+        setContracts(prev =>
           prev.map(c => c.id === contractId ? { ...c, ...updates } : c)
         )
         return contracts.find(c => c.id === contractId)
@@ -136,7 +139,7 @@ export function ContractProvider({ children }) {
     } catch (error) {
       console.error('Update contract error:', error)
       // Fallback to local state update
-      setContracts(prev => 
+      setContracts(prev =>
         prev.map(c => c.id === contractId ? { ...c, ...updates } : c)
       )
       return contracts.find(c => c.id === contractId)
@@ -177,7 +180,7 @@ export function ContractProvider({ children }) {
 
       // Determine signer type
       const signerType = isAcceptee ? 'acceptee' : 'creator'
-      
+
       // Upload signature to storage
       let signatureUrl = signature // Fallback to base64 if upload fails
       if (userId) {
@@ -193,18 +196,18 @@ export function ContractProvider({ children }) {
       }
 
       const updates = isAcceptee
-        ? { 
-            accepteeSignature: signatureUrl, 
-            status: 'Ongoing',
-            accepteeSignedAt: new Date().toISOString()
-          }
-        : { 
-            creatorSignature: signatureUrl,
-            creatorSignedAt: new Date().toISOString()
-          }
-      
+        ? {
+          accepteeSignature: signatureUrl,
+          status: 'Ongoing',
+          accepteeSignedAt: new Date().toISOString()
+        }
+        : {
+          creatorSignature: signatureUrl,
+          creatorSignedAt: new Date().toISOString()
+        }
+
       const { data, error } = await contractService.updateContract(contractId, updates)
-      
+
       if (!error && data) {
         setContracts(prev =>
           prev.map(c => c.id === contractId ? data : c)
@@ -248,9 +251,9 @@ export function ContractProvider({ children }) {
         declineReason,
         declinedAt: new Date().toISOString(),
       }
-      
+
       const { data, error } = await contractService.updateContract(contractId, updates)
-      
+
       if (!error && data) {
         setContracts(prev =>
           prev.map(c => c.id === contractId ? data : c)
@@ -302,9 +305,9 @@ export function ContractProvider({ children }) {
         breachReason,
         breachedAt: new Date().toISOString(),
       }
-      
+
       const { data, error } = await contractService.updateContract(contractId, updates)
-      
+
       if (!error && data) {
         setContracts(prev =>
           prev.map(c => c.id === contractId ? data : c)
