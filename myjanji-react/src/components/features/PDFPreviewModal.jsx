@@ -47,6 +47,39 @@ export default function PDFPreviewModal({
   const highlightRefs = useRef({})
   const pdfIframeRef = useRef(null)
 
+  // Generate cache key based on contract ID or template+formData hash
+  const getCacheKey = () => {
+    const contractId = contract?.id || contract?.contract_id
+    if (contractId) return `ai_analysis_${contractId}`
+    // For unsigned contracts, use template + a hash of form data
+    return `ai_analysis_${templateType}_${JSON.stringify(formData).slice(0, 100)}`
+  }
+
+  // Load cached AI analysis from sessionStorage
+  const loadCachedAnalysis = () => {
+    try {
+      const cached = sessionStorage.getItem(getCacheKey())
+      if (cached) {
+        const data = JSON.parse(cached)
+        console.log('✨ Loaded cached AI analysis')
+        return data
+      }
+    } catch (e) {
+      console.log('Cache load failed:', e)
+    }
+    return null
+  }
+
+  // Save AI analysis to sessionStorage
+  const saveCacheAnalysis = (data) => {
+    try {
+      sessionStorage.setItem(getCacheKey(), JSON.stringify(data))
+      console.log('💾 Saved AI analysis to cache')
+    } catch (e) {
+      console.log('Cache save failed:', e)
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
       if (directPdfUrl) {
@@ -55,10 +88,22 @@ export default function PDFPreviewModal({
       } else {
         generatePreview()
       }
-      // Reset AI state when modal opens
-      setAnnotations([])
-      setShowAIPanel(false)
-      setAIError(null)
+
+      // Load cached AI analysis instead of resetting
+      const cached = loadCachedAnalysis()
+      if (cached) {
+        setAnnotations(cached.annotations || [])
+        setPageInfo(cached.pageInfo || [])
+        // Don't auto-show panel, but data is ready
+        setAIError(null)
+      } else {
+        // No cache - reset state
+        setAnnotations([])
+        setShowAIPanel(false)
+        setAIError(null)
+        setPageInfo([])
+      }
+      setHighlightedPdfUrl(null) // PDF blob can't be cached, will regenerate
     }
     return () => {
       if (pdfUrl && pdfUrl.startsWith('blob:')) {
@@ -247,6 +292,39 @@ export default function PDFPreviewModal({
 
   // Handle AI Analysis - fetch actual DOCX text from backend
   const handleAnalyze = async () => {
+    // If we already have annotations (from state or sessionStorage), use them
+    if (annotations.length > 0) {
+      console.log('✨ Using cached AI analysis results')
+      setShowAIPanel(true)
+
+      // If we don't have highlighted PDF yet, regenerate it from cached annotations
+      if (!highlightedPdfUrl) {
+        console.log('📄 Regenerating highlighted PDF from cached annotations...')
+        try {
+          const placeholders = buildPlaceholders(formData, creator, acceptee)
+          const highlightResponse = await fetch(`${BACKEND_URL}/get_highlighted_pdf`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              template_name: templateType,
+              placeholders: placeholders,
+              annotations: annotations
+            })
+          })
+
+          if (highlightResponse.ok) {
+            const blob = await highlightResponse.blob()
+            const url = URL.createObjectURL(blob)
+            setHighlightedPdfUrl(url)
+            console.log('✅ Regenerated highlighted PDF')
+          }
+        } catch (e) {
+          console.log('Failed to regenerate PDF:', e)
+        }
+      }
+      return
+    }
+
     setIsAnalyzing(true)
     setAIError(null)
     setShowAIPanel(true)
@@ -312,15 +390,22 @@ export default function PDFPreviewModal({
             if (highlightResponse.ok) {
               // Get page info from header
               const annotationsHeader = highlightResponse.headers.get('X-Annotations')
+              let pageData = []
               if (annotationsHeader) {
                 try {
-                  const pageData = JSON.parse(annotationsHeader)
+                  pageData = JSON.parse(annotationsHeader)
                   setPageInfo(pageData)
                   console.log('📍 Page info:', pageData)
                 } catch (e) {
                   console.log('Failed to parse page info')
                 }
               }
+
+              // Save to persistent cache (sessionStorage)
+              saveCacheAnalysis({
+                annotations: foundAnnotations,
+                pageInfo: pageData
+              })
 
               const blob = await highlightResponse.blob()
               const url = URL.createObjectURL(blob)
@@ -441,6 +526,21 @@ export default function PDFPreviewModal({
       }
       console.log(`📄 Navigating to page ${page}`)
     }
+  }
+
+  // Force re-analyze - clears cache and triggers new analysis
+  const forceReanalyze = () => {
+    // Clear sessionStorage cache
+    try {
+      sessionStorage.removeItem(getCacheKey())
+      console.log('🗑️ Cleared cached AI analysis')
+    } catch (e) { }
+
+    setAnnotations([])
+    setHighlightedPdfUrl(null)
+    setPageInfo([])
+    // Small delay to ensure state is cleared before starting new analysis
+    setTimeout(() => handleAnalyze(), 100)
   }
 
   const handleDownload = async () => {
@@ -753,7 +853,7 @@ export default function PDFPreviewModal({
                     {!isAnalyzing && (
                       <div className="p-3 border-t border-gray-200 bg-white">
                         <button
-                          onClick={handleAnalyze}
+                          onClick={forceReanalyze}
                           className="w-full flex items-center justify-center gap-2 text-sm text-body/60 hover:text-primary transition-colors py-2"
                         >
                           <RefreshCw className="h-4 w-4" />
