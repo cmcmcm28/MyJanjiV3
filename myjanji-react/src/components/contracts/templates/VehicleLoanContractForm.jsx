@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Input, { Select, Textarea } from '../../ui/Input'
 import Button from '../../ui/Button'
-import { Calendar, User, DollarSign, Package, Shield, FileText, Check, ArrowRight, ArrowLeft, Car } from 'lucide-react'
+import { Calendar, User, DollarSign, Package, Shield, FileText, Check, ArrowRight, ArrowLeft, Car, Star } from 'lucide-react'
+import { calculateTrustScore, getTrustScoreColor, getContractStats, formatTrustScore } from '../../../utils/trustScore'
 
 const steps = [
     { title: 'Basic Details', description: 'Contract info' },
@@ -126,39 +127,101 @@ export default function VehicleLoanContractForm({ formData, handleChange, accept
             case 3:
                 return (
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-header text-xl mb-4">Step 4: Select Acceptee (Borrower)</h4>
+                        <h4 className="font-semibold text-header text-xl mb-4">Step 4: Enter Borrower IC</h4>
 
-                        <Select
-                            label="Who is borrowing the vehicle?"
-                            value={formData.accepteeId || ''}
-                            onChange={(e) => {
-                                const selectedId = e.target.value
-                                handleChange('accepteeId', selectedId)
-                                const selectedUser = acceptees.find(u => u.id === selectedId)
-                                if (selectedUser) {
-                                    handleChange('accepteeName', selectedUser.name)
-                                    handleChange('accepteeIdNumber', selectedUser.ic || selectedUser.user_id || '')
-                                }
-                            }}
-                            options={acceptees.map(u => ({ value: u.id, label: `${u.name} (${u.ic})` }))}
-                            placeholder="Select Borrower"
-                            required
-                        />
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-body">
+                                Enter Borrower's NRIC / Passport Number
+                            </label>
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="e.g. 850101-14-5555"
+                                    value={formData.accepteeIdNumber || ''}
+                                    onChange={(e) => {
+                                        handleChange('accepteeIdNumber', e.target.value)
+                                        // Clear verification when IC changes
+                                        handleChange('accepteeVerified', false)
+                                        handleChange('accepteeName', '')
+                                        handleChange('accepteeId', '')
+                                    }}
+                                    className="flex-1"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    onClick={() => {
+                                        const ic = formData.accepteeIdNumber?.trim()
+                                        if (!ic) {
+                                            handleChange('accepteeError', 'Please enter an IC number')
+                                            return
+                                        }
+                                        // Find user by IC
+                                        const found = acceptees.find(u =>
+                                            u.ic === ic ||
+                                            u.ic?.replace(/-/g, '') === ic.replace(/-/g, '')
+                                        )
+                                        if (found) {
+                                            handleChange('accepteeId', found.id)
+                                            handleChange('accepteeName', found.name)
+                                            handleChange('accepteeVerified', true)
+                                            handleChange('accepteeError', '')
+                                        } else {
+                                            handleChange('accepteeVerified', false)
+                                            handleChange('accepteeName', '')
+                                            handleChange('accepteeId', '')
+                                            handleChange('accepteeError', 'No user found with this IC number')
+                                        }
+                                    }}
+                                >
+                                    Verify
+                                </Button>
+                            </div>
+                            <p className="text-xs text-body/60">Enter the borrower's IC to verify their identity</p>
+                        </div>
 
-                        <Input
-                            label="Borrower's Name"
-                            placeholder="Checking..."
-                            value={formData.accepteeName || ''}
-                            onChange={(e) => handleChange('accepteeName', e.target.value)}
-                            helperText="Auto-filled from selection."
-                        />
+                        {/* Error message */}
+                        {formData.accepteeError && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                                ❌ {formData.accepteeError}
+                            </div>
+                        )}
 
-                        <Input
-                            label="Borrower's NRIC / Passport"
-                            placeholder="Checking..."
-                            value={formData.accepteeIdNumber || ''}
-                            onChange={(e) => handleChange('accepteeIdNumber', e.target.value)}
-                        />
+                        {/* Success - Show verified borrower info */}
+                        {formData.accepteeVerified && formData.accepteeName && (() => {
+                            // Calculate trust score for the acceptee
+                            const accepteeUser = acceptees.find(u => u.id === formData.accepteeId)
+                            const accepteeStats = getContractStats(accepteeUser?.contracts || [], formData.accepteeId)
+                            const trustScore = calculateTrustScore(accepteeStats)
+                            const trustColors = getTrustScoreColor(trustScore)
+
+                            return (
+                                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Check className="h-5 w-5 text-green-600" />
+                                        <span className="font-semibold text-green-700">Borrower Verified!</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-3 text-sm">
+                                        <div>
+                                            <span className="text-body/60">Name:</span>
+                                            <p className="font-medium text-header">{formData.accepteeName}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-body/60">IC Number:</span>
+                                            <p className="font-medium text-header">{formData.accepteeIdNumber}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-body/60">Trust Score:</span>
+                                            <div className="flex items-center gap-1">
+                                                <Star className={`h-4 w-4 ${trustColors.text}`} fill="currentColor" />
+                                                <span className={`font-bold ${trustColors.text}`}>
+                                                    {formatTrustScore(trustScore)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })()}
                     </div>
                 )
             case 4:

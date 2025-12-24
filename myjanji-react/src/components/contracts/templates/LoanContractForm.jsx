@@ -124,39 +124,80 @@ export default function LoanContractForm({ formData, handleChange, acceptees = [
             case 3:
                 return (
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-header text-xl mb-4">Step 4: Borrower Information (The Recipient)</h4>
+                        <h4 className="font-semibold text-header text-xl mb-4">Step 4: Enter Borrower IC</h4>
 
-                        <Select
-                            label="Who is borrowing the equipment?"
-                            value={formData.accepteeId || ''}
-                            onChange={(e) => {
-                                const selectedId = e.target.value
-                                handleChange('accepteeId', selectedId)
-                                const selectedUser = acceptees.find(u => u.id === selectedId)
-                                if (selectedUser) {
-                                    handleChange('accepteeName', selectedUser.name)
-                                    handleChange('accepteeIdNumber', selectedUser.ic || selectedUser.user_id || '')
-                                }
-                            }}
-                            options={acceptees.map(u => ({ value: u.id, label: `${u.name} (${u.ic})` }))}
-                            placeholder="Select Borrower"
-                            required
-                        />
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-body">
+                                Enter Borrower's NRIC / Passport Number
+                            </label>
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="e.g. 850101-14-5555"
+                                    value={formData.accepteeIdNumber || ''}
+                                    onChange={(e) => {
+                                        handleChange('accepteeIdNumber', e.target.value)
+                                        handleChange('accepteeVerified', false)
+                                        handleChange('accepteeName', '')
+                                        handleChange('accepteeId', '')
+                                    }}
+                                    className="flex-1"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    onClick={() => {
+                                        const ic = formData.accepteeIdNumber?.trim()
+                                        if (!ic) {
+                                            handleChange('accepteeError', 'Please enter an IC number')
+                                            return
+                                        }
+                                        const found = acceptees.find(u =>
+                                            u.ic === ic ||
+                                            u.ic?.replace(/-/g, '') === ic.replace(/-/g, '')
+                                        )
+                                        if (found) {
+                                            handleChange('accepteeId', found.id)
+                                            handleChange('accepteeName', found.name)
+                                            handleChange('accepteeVerified', true)
+                                            handleChange('accepteeError', '')
+                                        } else {
+                                            handleChange('accepteeVerified', false)
+                                            handleChange('accepteeName', '')
+                                            handleChange('accepteeId', '')
+                                            handleChange('accepteeError', 'No user found with this IC number')
+                                        }
+                                    }}
+                                >
+                                    Verify
+                                </Button>
+                            </div>
+                            <p className="text-xs text-body/60">Enter the borrower's IC to verify their identity</p>
+                        </div>
 
-                        <Input
-                            label="Borrower's Full Legal Name"
-                            placeholder="Checking..."
-                            value={formData.accepteeName || ''}
-                            onChange={(e) => handleChange('accepteeName', e.target.value)}
-                            helperText="Will be auto-filled from selection if available"
-                        />
+                        {formData.accepteeError && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                                ❌ {formData.accepteeError}
+                            </div>
+                        )}
 
-                        <Input
-                            label="Borrower's NRIC or Passport Number"
-                            placeholder="Checking..."
-                            value={formData.accepteeIdNumber || ''}
-                            onChange={(e) => handleChange('accepteeIdNumber', e.target.value)}
-                        />
+                        {formData.accepteeVerified && formData.accepteeName && (
+                            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Check className="h-5 w-5 text-green-600" />
+                                    <span className="font-semibold text-green-700">Borrower Verified!</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-body/60">Name:</span>
+                                        <p className="font-medium text-header">{formData.accepteeName}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-body/60">IC Number:</span>
+                                        <p className="font-medium text-header">{formData.accepteeIdNumber}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )
             case 4:

@@ -139,6 +139,12 @@ export default function CreateContractPage() {
       ...prev,
       name: template.name,
       topic: template.description,
+      // Clear acceptee fields when switching templates
+      accepteeId: '',
+      accepteeName: '',
+      accepteeIdNumber: '',
+      accepteeVerified: false,
+      accepteeError: '',
     }))
     setCurrentStep(2)
   }

@@ -43,14 +43,81 @@ export default function DepositContractForm({ formData, handleChange, acceptees 
                             icon={FileText}
                             required
                         />
-                        <Select
-                            label="Select Acceptee (Other Party)"
-                            value={formData.accepteeId || ''}
-                            onChange={(e) => handleChange('accepteeId', e.target.value)}
-                            options={acceptees.map(u => ({ value: u.id, label: `${u.name} (${u.ic})` }))}
-                            placeholder="Choose the other party"
-                            required
-                        />
+
+                        {/* IC Verification for Acceptee */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-body">
+                                Enter Other Party's NRIC / Passport Number
+                            </label>
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="e.g. 850101-14-5555"
+                                    value={formData.accepteeIdNumber || ''}
+                                    onChange={(e) => {
+                                        handleChange('accepteeIdNumber', e.target.value)
+                                        handleChange('accepteeVerified', false)
+                                        handleChange('accepteeName', '')
+                                        handleChange('accepteeId', '')
+                                    }}
+                                    className="flex-1"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    onClick={() => {
+                                        const ic = formData.accepteeIdNumber?.trim()
+                                        if (!ic) {
+                                            handleChange('accepteeError', 'Please enter an IC number')
+                                            return
+                                        }
+                                        const found = acceptees.find(u =>
+                                            u.ic === ic ||
+                                            u.ic?.replace(/-/g, '') === ic.replace(/-/g, '')
+                                        )
+                                        if (found) {
+                                            handleChange('accepteeId', found.id)
+                                            handleChange('accepteeName', found.name)
+                                            handleChange('accepteeVerified', true)
+                                            handleChange('accepteeError', '')
+                                        } else {
+                                            handleChange('accepteeVerified', false)
+                                            handleChange('accepteeName', '')
+                                            handleChange('accepteeId', '')
+                                            handleChange('accepteeError', 'No user found with this IC number')
+                                        }
+                                    }}
+                                >
+                                    Verify
+                                </Button>
+                            </div>
+                            <p className="text-xs text-body/60">Enter the other party's IC to verify their identity</p>
+                        </div>
+
+                        {formData.accepteeError && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                                ❌ {formData.accepteeError}
+                            </div>
+                        )}
+
+                        {formData.accepteeVerified && formData.accepteeName && (
+                            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Check className="h-5 w-5 text-green-600" />
+                                    <span className="font-semibold text-green-700">Party Verified!</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-body/60">Name:</span>
+                                        <p className="font-medium text-header">{formData.accepteeName}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-body/60">IC Number:</span>
+                                        <p className="font-medium text-header">{formData.accepteeIdNumber}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <Textarea
                             label="Topic / Description"
                             value={formData.topic || ''}
