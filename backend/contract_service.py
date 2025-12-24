@@ -764,3 +764,207 @@ def finalize_contract(
             "success": False,
             "error": str(e)
         }
+
+
+def update_contract_pdf(pdf_path: str, user_id: str, contract_id: str) -> str:
+    """
+    Update (overwrite) existing contract PDF in Supabase Storage.
+    Storage path: {user_id}/{contract_id}.pdf
+    Returns public URL.
+    """
+    supabase = get_supabase_client()
+
+    # Storage path: user_id/contract_id.pdf
+    storage_path = f"{user_id}/{contract_id}.pdf"
+
+    print(f"📤 Updating PDF in bucket '{PDF_BUCKET}': {storage_path}")
+
+    # Read PDF file
+    with open(pdf_path, 'rb') as f:
+        pdf_data = f.read()
+
+    # Use update to overwrite existing file
+    try:
+        response = supabase.storage.from_(PDF_BUCKET).update(
+            storage_path,
+            pdf_data,
+            file_options={"content-type": "application/pdf"}
+        )
+    except Exception as e:
+        # If update fails, try upload (file might not exist)
+        print(f"⚠️ Update failed, trying upload: {e}")
+        response = supabase.storage.from_(PDF_BUCKET).upload(
+            storage_path,
+            pdf_data,
+            file_options={"content-type": "application/pdf", "upsert": "true"}
+        )
+
+    # Get public URL with cache buster
+    import time
+    public_url = supabase.storage.from_(
+        PDF_BUCKET).get_public_url(storage_path)
+    # Add cache buster
+    public_url_with_cache = f"{public_url}?t={int(time.time())}"
+
+    print(f"✅ PDF updated: {public_url_with_cache}")
+    return public_url_with_cache
+
+
+def update_contract_record(contract_id: str, updates: dict) -> dict:
+    """
+    Update an existing contract record in Supabase contracts table.
+    Returns the updated contract data.
+    """
+    supabase = get_supabase_client()
+
+    print(f"📝 Updating contract record: {contract_id}")
+
+    # Update in contracts table
+    result = supabase.table('contracts').update(
+        updates).eq('contract_id', contract_id).execute()
+
+    if result.data:
+        print(f"✅ Contract record updated: {contract_id}")
+        return result.data[0]
+    else:
+        raise Exception("Failed to update contract record")
+
+
+def get_contract_by_id(contract_id: str) -> dict:
+    """
+    Fetch a contract record from Supabase by contract_id.
+    Returns the contract data or None.
+    """
+    supabase = get_supabase_client()
+
+    result = supabase.table('contracts').select(
+        '*').eq('contract_id', contract_id).execute()
+
+    if result.data and len(result.data) > 0:
+        return result.data[0]
+    return None
+
+
+def sign_contract_acceptor(
+    contract_id: str,
+    acceptor_signature_base64: str,
+    acceptor_name: str,
+    acceptor_ic: str,
+    acceptor_nfc_verified: bool = False,
+    acceptor_face_verified: bool = False
+) -> dict:
+    """
+    Sign contract as acceptor:
+    1. Fetch contract record from database
+    2. Re-download the template
+    3. Fill in ALL placeholders including:
+       - Creator details (from form_data)
+       - Acceptor details (from this call)
+       - Both signatures
+    4. Generate new PDF with both signatures
+    5. Overwrite the existing PDF in storage
+    6. Update contract record with acceptor signature info and status='Ongoing'
+    Returns dict with success status and updated PDF URL.
+    """
+    from datetime import datetime
+
+    try:
+        print(f"✍️ Acceptor signing contract: {contract_id}")
+
+        # Step 1: Fetch existing contract
+        contract = get_contract_by_id(contract_id)
+        if not contract:
+            return {
+                "success": False,
+                "error": f"Contract not found: {contract_id}"
+            }
+
+        template_type = contract.get('template_type')
+        form_data = contract.get('form_data', {})
+        creator_id = contract.get('created_user_id')
+        pdf_url = contract.get('pdf_url', '')
+
+        print(f"📋 Contract template: {template_type}")
+
+        # Step 2: Save acceptor signature to temp file
+        acceptor_sig_path = save_signature_image(
+            acceptor_signature_base64, f"acceptor_sig_{contract_id}")
+
+        # Get current timestamp
+        signing_timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        # Step 3: Build complete placeholders with all details
+        placeholders = {**form_data}
+
+        # Add acceptor details - support both uppercase and lowercase
+        placeholders['ACCEPTOR_NAME'] = acceptor_name
+        placeholders['acceptor_name'] = acceptor_name
+        placeholders['ACCEPTEE_NAME'] = acceptor_name
+        placeholders['acceptee_name'] = acceptor_name
+
+        placeholders['ACCEPTOR_IC'] = acceptor_ic
+        placeholders['acceptor_ic'] = acceptor_ic
+        placeholders['ACCEPTEE_IC'] = acceptor_ic
+        placeholders['acceptee_ic'] = acceptor_ic
+        placeholders['acceptor_id_number'] = acceptor_ic
+        placeholders['acceptee_id_number'] = acceptor_ic
+
+        # Add acceptor signature
+        if acceptor_sig_path and os.path.exists(acceptor_sig_path):
+            with open(acceptor_sig_path, 'rb') as f:
+                sig_data = f.read()
+            sig_base64 = f"data:image/png;base64,{base64.b64encode(sig_data).decode()}"
+            placeholders['ACCEPTOR_SIGNATURE'] = sig_base64
+            placeholders['acceptor_signature'] = sig_base64
+            placeholders['ACCEPTEE_SIGNATURE'] = sig_base64
+            placeholders['acceptee_signature'] = sig_base64
+
+        # Add acceptor signing date
+        placeholders['ACCEPTOR_SIGNING_DATE'] = signing_timestamp
+        placeholders['acceptor_signing_date'] = signing_timestamp
+        placeholders['ACCEPTEE_SIGNING_DATE'] = signing_timestamp
+        placeholders['acceptee_signing_date'] = signing_timestamp
+
+        print(f"📝 Filled {len(placeholders)} placeholders")
+
+        # Step 4: Download template and generate new PDF
+        doc_path = download_template(template_type)
+        filled_path = fill_template(doc_path, placeholders)
+        pdf_path = convert_to_pdf(filled_path)
+
+        # Step 5: Upload/overwrite PDF in storage
+        new_pdf_url = update_contract_pdf(pdf_path, creator_id, contract_id)
+
+        # Step 6: Update contract record
+        updates = {
+            "status": "Ongoing",
+            "acceptee_nfc_verified": acceptor_nfc_verified,
+            "acceptee_face_verified": acceptor_face_verified,
+            "acceptee_signed_at": datetime.now().isoformat(),
+            "pdf_url": new_pdf_url,
+        }
+
+        updated_contract = update_contract_record(contract_id, updates)
+
+        # Cleanup temp files
+        cleanup_temp_files([doc_path, filled_path, pdf_path])
+        if acceptor_sig_path:
+            cleanup_temp_files([acceptor_sig_path])
+
+        print(f"✅ Contract signed by acceptor: {contract_id}")
+
+        return {
+            "success": True,
+            "contract": updated_contract,
+            "pdf_url": new_pdf_url,
+            "message": "Contract signed successfully"
+        }
+
+    except Exception as e:
+        print(f"❌ Acceptor signing failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e)
+        }

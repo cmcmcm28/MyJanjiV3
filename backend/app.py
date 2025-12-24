@@ -703,6 +703,77 @@ def health():
     return response
 
 
+@app.route('/sign_contract', methods=['POST', 'OPTIONS'])
+def sign_contract():
+    """
+    Sign contract as acceptor:
+    - Re-generate PDF with acceptor signature and details
+    - Overwrite existing PDF in storage
+    - Update contract status to 'Ongoing'
+    Expects: contract_id, acceptor_signature, acceptor_name, acceptor_ic, verification flags
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add(
+                'Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            return response
+
+        data = request.json
+        if not data:
+            response = jsonify(
+                {"status": "error", "message": "No data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        # Required fields
+        contract_id = data.get('contract_id')
+        acceptor_signature = data.get('acceptor_signature')
+        acceptor_name = data.get('acceptor_name')
+        acceptor_ic = data.get('acceptor_ic')
+
+        # Optional verification flags
+        acceptor_nfc_verified = data.get('acceptor_nfc_verified', False)
+        acceptor_face_verified = data.get('acceptor_face_verified', False)
+
+        if not contract_id:
+            response = jsonify(
+                {"status": "error", "message": "contract_id is required"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        if not acceptor_signature:
+            response = jsonify(
+                {"status": "error", "message": "acceptor_signature is required"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        print(f"✍️ Signing contract as acceptor: {contract_id}")
+
+        result = contract_service.sign_contract_acceptor(
+            contract_id=contract_id,
+            acceptor_signature_base64=acceptor_signature,
+            acceptor_name=acceptor_name or 'Unknown',
+            acceptor_ic=acceptor_ic or 'Unknown',
+            acceptor_nfc_verified=acceptor_nfc_verified,
+            acceptor_face_verified=acceptor_face_verified
+        )
+
+        response = jsonify(result)
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        print(f"Error signing contract: {e}")
+        import traceback
+        traceback.print_exc()
+        response = jsonify({"status": "error", "message": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
 if __name__ == '__main__':
     print("=" * 50)
     print("🚀 Starting Flask Facial Recognition Server")

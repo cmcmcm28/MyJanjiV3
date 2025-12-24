@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FileText,
   Check,
   X,
   Calendar,
@@ -19,7 +18,6 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContracts } from '../context/ContractContext'
-import { users } from '../utils/dummyData'
 import Header from '../components/layout/Header'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
@@ -33,15 +31,14 @@ import PDFPreviewModal from '../components/features/PDFPreviewModal'
 const steps = [
   { id: 0, label: 'NFC Scan', icon: Nfc },
   { id: 1, label: 'Face Verify', icon: ScanFace },
-  { id: 2, label: 'Review & Consent', icon: FileText },
-  { id: 3, label: 'Preview', icon: Eye },
-  { id: 4, label: 'Sign', icon: Check },
+  { id: 2, label: 'Review & Preview', icon: Eye },
+  { id: 3, label: 'Sign', icon: Check },
 ]
 
 export default function SignContractPage() {
   const { contractId } = useParams()
   const navigate = useNavigate()
-  const { currentUser } = useAuth()
+  const { currentUser, availableUsers } = useAuth()
   const { getContractById, signContract, declineContract } = useContracts()
 
   const [contract, setContract] = useState(null)
@@ -98,14 +95,41 @@ export default function SignContractPage() {
     setIsSubmitting(true)
 
     try {
-      // Update contract with signature (will upload to Supabase storage)
-      await signContract(contract.id, signature, true, currentUser.id)
+      // Call backend to sign contract with acceptor signature
+      // This will re-generate PDF with acceptor details and signature, then overwrite in storage
+      const response = await fetch('http://localhost:5000/sign_contract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contract_id: contract.id || contract.contract_id,
+          acceptor_signature: signature,
+          acceptor_name: currentUser.name,
+          acceptor_ic: currentUser.ic,
+          acceptor_nfc_verified: !!nfcData,
+          acceptor_face_verified: isFaceVerified,
+        }),
+      })
 
-      // Navigate back to dashboard
-      navigate('/dashboard')
+      const result = await response.json()
+
+      if (result.success) {
+        console.log('✅ Contract signed successfully:', result)
+        // Also update local state via ContractContext
+        await signContract(contract.id, signature, true, currentUser.id)
+        // Navigate to dashboard
+        navigate('/dashboard')
+      } else {
+        console.error('❌ Contract signing failed:', result.error)
+        // Fallback to local update
+        await signContract(contract.id, signature, true, currentUser.id)
+        navigate('/dashboard')
+      }
     } catch (error) {
       console.error('Error submitting signature:', error)
-      // Still navigate even if there's an error (signature saved locally)
+      // Fallback to local update
+      await signContract(contract.id, signature, true, currentUser.id)
       navigate('/dashboard')
     } finally {
       setIsSubmitting(false)
@@ -147,7 +171,8 @@ export default function SignContractPage() {
     )
   }
 
-  const creator = users[contract.userId]
+  // Find creator from availableUsers using contract's creator_id or userId
+  const creator = availableUsers.find(u => u.id === (contract.creator_id || contract.userId)) || null
 
   return (
     <div className="min-h-screen bg-background">
@@ -274,10 +299,10 @@ export default function SignContractPage() {
             </motion.div>
           )}
 
-          {/* Step 2: Review & Consent */}
+          {/* Step 2: Review, Preview & Consent (merged) */}
           {currentStep === 2 && (
             <motion.div
-              key="review"
+              key="review-preview"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -332,8 +357,8 @@ export default function SignContractPage() {
                         className="w-10 h-10 rounded-lg object-cover"
                       />
                       <div>
-                        <p className="font-medium text-header text-sm">{creator?.name}</p>
-                        <p className="text-xs text-body/50">{creator?.ic}</p>
+                        <p className="font-medium text-header text-sm">{creator?.name || 'Unknown'}</p>
+                        <p className="text-xs text-body/50">{creator?.ic || contract.creatorIc || 'N/A'}</p>
                       </div>
                     </div>
                     {contract.creatorSignature && (
@@ -364,6 +389,18 @@ export default function SignContractPage() {
                   </div>
                 </div>
 
+                {/* Preview PDF Button */}
+                <div className="mb-6">
+                  <Button
+                    onClick={() => setShowPdfPreview(true)}
+                    variant="outline"
+                    icon={Eye}
+                    className="w-full"
+                  >
+                    Preview Contract PDF {creator?.name ? `(Signed by ${creator.name})` : ''}
+                  </Button>
+                </div>
+
                 {/* Consent Checkbox */}
                 <div className="mb-6 pt-4 border-t border-gray-100">
                   <button
@@ -383,25 +420,10 @@ export default function SignContractPage() {
                       </p>
                       <p className="text-xs text-body/50 mt-1">
                         I confirm that I have read and understand all terms and conditions in this contract.
-                        I agree to proceed with preview and signing.
+                        I agree to proceed with signing.
                       </p>
                     </div>
                   </button>
-                </div>
-
-                {/* Next Steps Info */}
-                <div className={`rounded-xl p-4 mb-6 transition-colors ${hasConsented ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
-                  <p className={`text-sm font-medium mb-2 ${hasConsented ? 'text-blue-800' : 'text-body/50'}`}>Next Steps:</p>
-                  <div className={`space-y-2 text-sm ${hasConsented ? 'text-blue-700' : 'text-body/40'}`}>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${hasConsented ? 'bg-blue-200' : 'bg-gray-200'}`}>1</div>
-                      <span>Preview Contract - Review the contract PDF</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${hasConsented ? 'bg-blue-200' : 'bg-gray-200'}`}>2</div>
-                      <span>Digital Signature - Sign the contract</span>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Actions */}
@@ -420,92 +442,19 @@ export default function SignContractPage() {
                     onClick={() => setCurrentStep(3)}
                     disabled={!hasConsented}
                   >
-                    {hasConsented ? 'Continue to Preview' : 'Please consent above'}
+                    {hasConsented ? 'Continue to Sign' : 'Please consent above'}
                   </Button>
                 </div>
               </Card>
 
               <p className="text-xs text-body/40 text-center mt-4 px-4">
-                Your identity has been verified. Please review and consent to proceed.
+                Your identity has been verified. Please review the contract and consent to proceed.
               </p>
             </motion.div>
           )}
 
-          {/* Step 3: Preview PDF */}
+          {/* Step 3: Signature */}
           {currentStep === 3 && (
-            <motion.div
-              key="preview"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-            >
-              <Card padding="lg">
-                <div className="text-center mb-6">
-                  <Eye className="h-12 w-12 text-primary mx-auto mb-3" />
-                  <h2 className="text-xl font-bold text-header mb-2">Preview Contract</h2>
-                  <p className="text-body/60 text-sm mb-4">
-                    Review the contract PDF before signing. Your identity has been verified.
-                  </p>
-                </div>
-
-                {/* Verification Status */}
-                <div className="flex gap-3 mb-6">
-                  <div className={`flex-1 p-3 rounded-xl ${nfcData ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
-                    <div className="flex items-center gap-2">
-                      {nfcData ? (
-                        <Check className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Nfc className="h-4 w-4 text-body/40" />
-                      )}
-                      <span className={`text-sm font-medium ${nfcData ? 'text-green-700' : 'text-body/40'}`}>
-                        NFC {nfcData ? 'Verified' : 'Pending'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className={`flex-1 p-3 rounded-xl ${isFaceVerified ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
-                    <div className="flex items-center gap-2">
-                      {isFaceVerified ? (
-                        <Check className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <ScanFace className="h-4 w-4 text-body/40" />
-                      )}
-                      <span className={`text-sm font-medium ${isFaceVerified ? 'text-green-700' : 'text-body/40'}`}>
-                        Face {isFaceVerified ? 'Verified' : 'Pending'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Preview PDF Button */}
-                <div className="mb-6">
-                  <Button
-                    onClick={() => setShowPdfPreview(true)}
-                    variant="outline"
-                    icon={Eye}
-                    className="w-full"
-                  >
-                    Preview Contract PDF (Signed by {creator?.name})
-                  </Button>
-                </div>
-
-                {/* Continue to Sign Button */}
-                <Button
-                  fullWidth
-                  onClick={() => setCurrentStep(4)}
-                  icon={Check}
-                >
-                  Continue to Sign
-                </Button>
-              </Card>
-
-              <p className="text-xs text-body/40 text-center mt-4 px-4">
-                Please review the contract carefully before proceeding to sign.
-              </p>
-            </motion.div>
-          )}
-
-          {/* Step 4: Signature */}
-          {currentStep === 4 && (
             <motion.div
               key="sign"
               initial={{ opacity: 0, x: 20 }}
@@ -603,7 +552,7 @@ export default function SignContractPage() {
         </AnimatePresence>
       </div>
 
-      {/* PDF Preview Modal */}
+      {/* PDF Preview Modal - uses directPdfUrl to fetch from storage */}
       <PDFPreviewModal
         isOpen={showPdfPreview}
         onClose={() => setShowPdfPreview(false)}
@@ -614,6 +563,7 @@ export default function SignContractPage() {
         formData={contract.formData}
         title={`Contract: ${contract.name}`}
         allowDownload={true}
+        directPdfUrl={contract.pdfUrl || contract.pdf_url}
       />
 
       {/* Decline Contract Modal */}
