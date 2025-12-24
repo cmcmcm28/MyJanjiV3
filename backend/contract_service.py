@@ -765,6 +765,64 @@ def preview_contract(template_name: str, placeholders: dict) -> str:
         raise
 
 
+def extract_contract_text(template_name: str, placeholders: dict) -> dict:
+    """
+    Extract plain text from filled DOCX template.
+    Returns dict with success status and extracted text.
+    """
+    try:
+        print(f"📄 Extracting text from template: {template_name}")
+        
+        # Generate filled docx (same as preview)
+        filled_path = preview_contract(template_name, placeholders)
+        
+        # Open the filled document and extract text
+        doc = Document(filled_path)
+        
+        lines = []
+        
+        # Extract from paragraphs
+        for paragraph in doc.paragraphs:
+            text = paragraph.text.strip()
+            if text:
+                lines.append(text)
+        
+        # Extract from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_texts = []
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+                    if cell_text:
+                        row_texts.append(cell_text)
+                if row_texts:
+                    lines.append(" | ".join(row_texts))
+        
+        full_text = "\n".join(lines)
+        
+        # Cleanup temp file
+        doc_path = filled_path.replace('_filled.docx', '.docx')
+        cleanup_temp_files([doc_path, filled_path])
+        
+        print(f"✅ Extracted {len(full_text)} characters from contract")
+        
+        return {
+            "success": True,
+            "text": full_text,
+            "character_count": len(full_text)
+        }
+    
+    except Exception as e:
+        print(f"Text extraction failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "text": ""
+        }
+
+
 def upload_contract_pdf(pdf_path: str, user_id: str, contract_id: str) -> str:
     """
     Upload contract PDF to Supabase Storage under user_id folder.

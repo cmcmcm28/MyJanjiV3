@@ -391,7 +391,7 @@ export default function SignContractPage() {
                   </div>
                 </div>
 
-                {/* Preview PDF Button */}
+                {/* Preview PDF Button with AI Insights */}
                 <div className="mb-6">
                   <Button
                     onClick={() => setShowPdfPreview(true)}
@@ -401,6 +401,9 @@ export default function SignContractPage() {
                   >
                     Preview Contract PDF {creator?.name ? `(Signed by ${creator.name})` : ''}
                   </Button>
+                  <p className="text-xs text-body/40 text-center mt-2">
+                    Click 'AI Insights' in preview for clause analysis
+                  </p>
                 </div>
 
                 {/* Consent Checkbox */}

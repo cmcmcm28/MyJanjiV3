@@ -9,6 +9,8 @@ import numpy as np
 # ... (imports)
 from config import UPLOAD_FOLDER, PASSING_THRESHOLD_DISTANCE, PASSING_THRESHOLD_PERCENTAGE
 import contract_service
+import ai_annotation_service
+import pdf_highlight_service
 
 from flask import Flask, render_template, request, jsonify, url_for, make_response
 from flask_cors import CORS
@@ -966,6 +968,397 @@ def get_cache_status():
         return response
     except Exception as e:
         response = jsonify({"status": "error", "message": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+# --- AI ANNOTATION ROUTES ---
+
+@app.route('/analyze_contract', methods=['POST', 'OPTIONS'])
+def analyze_contract():
+    """
+    Analyze contract text using AI to extract important clauses.
+    Expects: agreement_text, contract_id (optional)
+    Returns: annotations list with highlighted_text, summary, importance, category, indices
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            return response
+
+        data = request.json
+        if not data:
+            response = jsonify({"success": False, "error": "No data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        agreement_text = data.get('agreement_text', '')
+        contract_id = data.get('contract_id', None)
+
+        if not agreement_text or len(agreement_text.strip()) < 50:
+            response = jsonify({
+                "success": False,
+                "error": "Agreement text is too short (minimum 50 characters)"
+            })
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        print(f"🤖 Analyzing contract with AI ({len(agreement_text)} chars)")
+        if contract_id:
+            print(f"   Contract ID: {contract_id}")
+
+        # Call AI annotation service
+        result = ai_annotation_service.extract_contract_annotations(agreement_text)
+
+        if result['success']:
+            print(f"✅ AI analysis complete: {len(result['annotations'])} annotations")
+        else:
+            print(f"❌ AI analysis failed: {result.get('error')}")
+
+        response = jsonify(result)
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        print(f"Error analyzing contract: {e}")
+        import traceback
+        traceback.print_exc()
+        response = jsonify({"success": False, "error": str(e), "annotations": []})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+@app.route('/get_agreement_text/<contract_id>', methods=['GET', 'OPTIONS'])
+def get_agreement_text(contract_id):
+    """
+    Get the plain text version of a contract for AI analysis.
+    Fetches from database form_data and generates text representation.
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'GET')
+            return response
+
+        # Get Supabase client
+        supabase = contract_service.get_supabase_client()
+        if not supabase:
+            response = jsonify({"success": False, "error": "Database not configured"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 500
+
+        # Fetch contract from database
+        result = supabase.table('contracts').select('*').eq('contract_id', contract_id).execute()
+
+        if not result.data:
+            response = jsonify({"success": False, "error": "Contract not found"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 404
+
+        contract = result.data[0]
+        form_data = contract.get('form_data', {})
+        template_type = contract.get('template_type', 'GENERAL')
+
+        # Generate agreement text from form data
+        agreement_text = generate_agreement_text(template_type, form_data, contract)
+
+        response = jsonify({
+            "success": True,
+            "agreement_text": agreement_text,
+            "contract_id": contract_id,
+            "template_type": template_type
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        print(f"Error getting agreement text: {e}")
+        import traceback
+        traceback.print_exc()
+        response = jsonify({"success": False, "error": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+def generate_agreement_text(template_type, form_data, contract):
+    """
+    Generate plain text representation of a contract for AI analysis.
+    """
+    if not form_data:
+        form_data = {}
+
+    contract_name = contract.get('contract_name', 'Agreement')
+    
+    # Build a structured text representation
+    lines = [
+        f"CONTRACT: {contract_name}",
+        f"Template Type: {template_type}",
+        "",
+        "PARTIES:",
+    ]
+    
+    # Add party information
+    creator_name = form_data.get('creator_name') or form_data.get('creatorName', 'Party A')
+    acceptee_name = form_data.get('acceptee_name') or form_data.get('accepteeName', 'Party B')
+    lines.append(f"- Creator/Lender: {creator_name}")
+    lines.append(f"- Acceptee/Borrower: {acceptee_name}")
+    lines.append("")
+    
+    # Add form data as contract terms
+    lines.append("TERMS AND CONDITIONS:")
+    lines.append("")
+    
+    # Common fields to extract with meaningful labels
+    field_labels = {
+        'amount': 'Loan/Payment Amount',
+        'loanAmount': 'Loan Amount',
+        'rental_fee': 'Rental Fee',
+        'rentalFee': 'Rental Fee',
+        'deposit_amount': 'Deposit Amount',
+        'depositAmount': 'Deposit Amount',
+        'payment_amount': 'Payment Amount',
+        'paymentAmount': 'Payment Amount',
+        'start_date': 'Start Date',
+        'startDate': 'Start Date',
+        'end_date': 'End Date',
+        'endDate': 'End Date',
+        'due_date': 'Due Date',
+        'dueDate': 'Due Date',
+        'payment_terms': 'Payment Terms',
+        'paymentTerms': 'Payment Terms',
+        'payment_frequency': 'Payment Frequency',
+        'paymentFrequency': 'Payment Frequency',
+        'interest_rate': 'Interest Rate',
+        'interestRate': 'Interest Rate',
+        'termination_notice_days': 'Termination Notice Period',
+        'noticePeriodDays': 'Notice Period (Days)',
+        'replacement_value': 'Replacement Value',
+        'replacementValue': 'Replacement Value',
+        'equipment_list': 'Equipment/Items',
+        'equipmentList': 'Equipment/Items',
+        'vehicle_list': 'Vehicles',
+        'vehicleList': 'Vehicles',
+        'service_description': 'Service Description',
+        'scopeOfWork': 'Scope of Work',
+        'terms': 'Additional Terms',
+        'additionalTerms': 'Additional Terms',
+    }
+    
+    for key, label in field_labels.items():
+        if key in form_data and form_data[key]:
+            value = form_data[key]
+            if key in ['amount', 'loanAmount', 'rental_fee', 'rentalFee', 'deposit_amount', 
+                       'depositAmount', 'payment_amount', 'paymentAmount', 'replacement_value', 'replacementValue']:
+                lines.append(f"- {label}: RM {value}")
+            else:
+                lines.append(f"- {label}: {value}")
+    
+    # Add any remaining form data not captured above
+    lines.append("")
+    lines.append("STANDARD CLAUSES:")
+    lines.append("")
+    
+    # Add template-specific standard clauses
+    if template_type in ['FRIENDLY_LOAN', 'MONEY_LEND']:
+        lines.extend([
+            "1. REPAYMENT: The Borrower agrees to repay the full loan amount according to the terms specified above.",
+            "",
+            "2. LATE PAYMENT: In the event of late payment, a penalty fee may be applied as agreed by both parties.",
+            "",
+            "3. DEFAULT: If the Borrower fails to make payment for an extended period, the Lender reserves the right to take legal action to recover the outstanding amount.",
+            "",
+            "4. TERMINATION: Either party may terminate this agreement with written notice. Upon termination, any outstanding balance becomes immediately due.",
+        ])
+    elif template_type in ['ITEM_BORROW', 'VEHICLE_USE']:
+        lines.extend([
+            "1. CONDITION: The Borrower acknowledges receiving the items/vehicle in good condition and agrees to return them in the same condition.",
+            "",
+            "2. LIABILITY: The Borrower is responsible for any damage, loss, or theft of the borrowed items during the borrowing period.",
+            "",
+            "3. RETURN: Items must be returned by the agreed end date. Late returns may incur additional fees.",
+            "",
+            "4. INSURANCE: The Borrower is responsible for maintaining appropriate insurance coverage during the borrowing period.",
+        ])
+    elif template_type in ['FREELANCE_JOB', 'SERVICE']:
+        lines.extend([
+            "1. SCOPE OF WORK: The Contractor agrees to perform the services as described above to the satisfaction of the Client.",
+            "",
+            "2. PAYMENT: Payment shall be made according to the terms specified. Late payment may incur additional charges.",
+            "",
+            "3. INTELLECTUAL PROPERTY: All work product created under this agreement shall belong to the Client upon full payment.",
+            "",
+            "4. CONFIDENTIALITY: The Contractor agrees to maintain confidentiality of all proprietary information.",
+            "",
+            "5. TERMINATION: Either party may terminate this agreement with the notice period specified above.",
+        ])
+    else:
+        lines.extend([
+            "1. AGREEMENT: Both parties agree to the terms and conditions stated in this contract.",
+            "",
+            "2. OBLIGATIONS: Each party shall fulfill their respective obligations as specified.",
+            "",
+            "3. DISPUTE RESOLUTION: Any disputes shall be resolved through mutual discussion or mediation before legal action.",
+            "",
+            "4. GOVERNING LAW: This agreement is governed by the laws of Malaysia.",
+        ])
+    
+    lines.append("")
+    lines.append("SIGNATURES:")
+    lines.append("By signing this document, both parties acknowledge that they have read, understood, and agree to be bound by all terms and conditions herein.")
+    
+    return "\n".join(lines)
+
+
+@app.route('/get_contract_text', methods=['POST', 'OPTIONS'])
+def get_contract_text():
+    """
+    Extract plain text from a filled DOCX template for AI analysis.
+    Uses the actual Word template with placeholders filled.
+    Expects: template_name, placeholders
+    Returns: { success: true, text: "...", character_count: 1234 }
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            return response
+
+        data = request.json
+        if not data:
+            response = jsonify({"success": False, "error": "No data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        template_name = data.get('template_name')
+        placeholders = data.get('placeholders', {})
+
+        if not template_name:
+            response = jsonify({"success": False, "error": "template_name is required"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        print(f"📄 Extracting text from DOCX: {template_name}")
+
+        # Use the new extract_contract_text function
+        result = contract_service.extract_contract_text(template_name, placeholders)
+
+        response = jsonify(result)
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        print(f"Error extracting contract text: {e}")
+        import traceback
+        traceback.print_exc()
+        response = jsonify({"success": False, "error": str(e), "text": ""})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+@app.route('/get_highlighted_pdf', methods=['POST', 'OPTIONS'])
+def get_highlighted_pdf():
+    """
+    Generate a PDF with AI-based highlight annotations.
+    Expects: template_name, placeholders, annotations (optional)
+    Returns: PDF blob with highlights
+    """
+    try:
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            return response
+
+        data = request.json
+        if not data:
+            response = jsonify({"success": False, "error": "No data provided"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        template_name = data.get('template_name')
+        placeholders = data.get('placeholders', {})
+        annotations = data.get('annotations', [])
+
+        if not template_name:
+            response = jsonify({"success": False, "error": "template_name is required"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+
+        print(f"📄 Generating highlighted PDF for: {template_name}")
+        print(f"   Received {len(annotations)} annotations from frontend")
+
+        # If no annotations provided, generate them via AI
+        if not annotations:
+            text_result = contract_service.extract_contract_text(template_name, placeholders)
+            if text_result.get('success') and text_result.get('text'):
+                ai_result = ai_annotation_service.extract_contract_annotations(text_result['text'])
+                if ai_result.get('success'):
+                    annotations = ai_result.get('annotations', [])
+                    print(f"✅ Generated {len(annotations)} AI annotations")
+        
+        # Debug: Show first annotation structure
+        if annotations:
+            print(f"   First annotation keys: {annotations[0].keys() if annotations else 'none'}")
+            print(f"   First highlighted_text: '{annotations[0].get('highlighted_text', '')[:50]}...'")
+
+        # Generate highlighted PDF
+        result = pdf_highlight_service.create_highlighted_pdf_preview(
+            template_name, placeholders, annotations
+        )
+
+        if not result.get('success'):
+            response = jsonify({"success": False, "error": result.get('error', 'Failed to create PDF')})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 500
+
+        pdf_path = result.get('pdf_path')
+        if not pdf_path or not os.path.exists(pdf_path):
+            response = jsonify({"success": False, "error": "PDF file not found"})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 500
+
+        # Return PDF blob
+        with open(pdf_path, 'rb') as f:
+            pdf_data = f.read()
+
+        response = make_response(pdf_data)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = 'inline; filename=highlighted_preview.pdf'
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Expose-Headers', 'X-Annotations')
+        
+        # Include annotations with page numbers in header
+        annotations_with_pages = result.get('annotations_with_pages', [])
+        # Send only essential info to keep header small
+        page_info = [{'page': a.get('page_number'), 'found': a.get('found', False)} for a in annotations_with_pages]
+        import json
+        response.headers['X-Annotations'] = json.dumps(page_info)
+        
+        # Cleanup
+        try:
+            if result.get('original_path') and os.path.exists(result.get('original_path')):
+                os.remove(result.get('original_path'))
+            if pdf_path and os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except:
+            pass
+        
+        print(f"✅ Returning highlighted PDF ({len(pdf_data)} bytes, {result.get('highlights_added', 0)} highlights)")
+        return response
+
+    except Exception as e:
+        print(f"Error generating highlighted PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        response = jsonify({"success": False, "error": str(e)})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
 
