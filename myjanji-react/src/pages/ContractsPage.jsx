@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import {
   FileText,
@@ -27,16 +28,9 @@ import QRCodeDisplay from '../components/features/QRCodeDisplay'
 import pdfService from '../services/pdfService'
 import { ContractsPageSkeleton } from '../components/ui/Skeleton'
 
-const statusTabs = [
-  { id: 'all', label: 'All', icon: FileText },
-  { id: 'ongoing', label: 'Ongoing', icon: TrendingUp },
-  { id: 'pending', label: 'Pending', icon: Clock },
-  { id: 'completed', label: 'Completed', icon: CheckCircle },
-  { id: 'breached', label: 'Breached', icon: AlertTriangle },
-]
-
 export default function ContractsPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { currentUser, isAuthenticated, availableUsers } = useAuth()
   const { contracts, getAllContractsForUser, loadUserContracts, loading } = useContracts()
   const [activeTab, setActiveTab] = useState('all')
@@ -44,6 +38,14 @@ export default function ContractsPage() {
   const [selectedContract, setSelectedContract] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
+
+  const statusTabs = [
+    { id: 'all', label: t('contracts.all'), icon: FileText },
+    { id: 'ongoing', label: t('contracts.ongoing'), icon: TrendingUp },
+    { id: 'pending', label: t('contracts.pending'), icon: Clock },
+    { id: 'completed', label: t('contracts.completed'), icon: CheckCircle },
+    { id: 'breached', label: t('contracts.breached'), icon: AlertTriangle },
+  ]
 
   // Helper to get user details
   const getUserById = (userId) => {
@@ -160,7 +162,7 @@ export default function ContractsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-24">
-        <Header title="Contracts" showLogout />
+        <Header title={t('contracts.title')} showLogout />
         <div className="mt-4">
           <ContractsPageSkeleton />
         </div>
@@ -171,7 +173,7 @@ export default function ContractsPage() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <Header title="Contracts" showLogout />
+      <Header title={t('contracts.title')} showLogout />
 
       {/* Stats Summary */}
       <div className="px-4 mt-4">

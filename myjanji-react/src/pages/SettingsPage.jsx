@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import {
   Bell,
@@ -14,6 +15,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  Check,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import Header from '../components/layout/Header'
@@ -23,11 +25,20 @@ import Button from '../components/ui/Button'
 
 export default function SettingsPage() {
   const navigate = useNavigate()
+  const { t, i18n } = useTranslation()
   const { currentUser, isAuthenticated, logout } = useAuth()
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [biometricEnabled, setBiometricEnabled] = useState(true)
   const [darkMode, setDarkMode] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showLanguageModal, setShowLanguageModal] = useState(false)
+
+  const currentLanguage = i18n.language
+
+  const changeLanguage = (lang) => {
+    i18n.changeLanguage(lang)
+    setShowLanguageModal(false)
+  }
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -51,12 +62,12 @@ export default function SettingsPage() {
 
   const settingsSections = [
     {
-      title: 'Notifications',
+      title: t('settings.notifications'),
       items: [
         {
           icon: Bell,
-          label: 'Push Notifications',
-          description: 'Receive notifications for contract updates',
+          label: t('settings.pushNotifications'),
+          description: t('settings.receiveNotifications'),
           value: notificationsEnabled,
           onChange: setNotificationsEnabled,
           type: 'toggle',
@@ -64,59 +75,59 @@ export default function SettingsPage() {
       ],
     },
     {
-      title: 'Security',
+      title: t('settings.security'),
       items: [
         {
           icon: Shield,
-          label: 'Biometric Authentication',
-          description: 'Use face recognition for login',
+          label: t('settings.biometricAuth'),
+          description: t('settings.useFaceRecognition'),
           value: biometricEnabled,
           onChange: setBiometricEnabled,
           type: 'toggle',
         },
         {
           icon: Lock,
-          label: 'Change Password',
-          description: 'Update your account password',
+          label: t('settings.changePassword'),
+          description: t('settings.updatePassword'),
           type: 'action',
           onClick: () => alert('Change password feature coming soon!'),
         },
       ],
     },
     {
-      title: 'Appearance',
+      title: t('settings.appearance'),
       items: [
         {
           icon: Moon,
-          label: 'Dark Mode',
-          description: 'Switch to dark theme',
+          label: t('settings.darkMode'),
+          description: t('settings.switchToDark'),
           value: darkMode,
           onChange: setDarkMode,
           type: 'toggle',
         },
         {
           icon: Globe,
-          label: 'Language',
-          description: 'English (US)',
+          label: t('settings.language'),
+          description: currentLanguage === 'bm' ? t('settings.malay') : t('settings.english'),
           type: 'action',
-          onClick: () => alert('Language selection coming soon!'),
+          onClick: () => setShowLanguageModal(true),
         },
       ],
     },
     {
-      title: 'Data & Privacy',
+      title: t('settings.dataPrivacy'),
       items: [
         {
           icon: Download,
-          label: 'Export Data',
-          description: 'Download your contract data',
+          label: t('settings.exportData'),
+          description: t('settings.downloadContractData'),
           type: 'action',
           onClick: () => alert('Data export feature coming soon!'),
         },
         {
           icon: Trash2,
-          label: 'Delete Account',
-          description: 'Permanently delete your account',
+          label: t('settings.deleteAccount'),
+          description: t('settings.permanentlyDelete'),
           type: 'action',
           onClick: () => setShowDeleteConfirm(true),
           danger: true,
@@ -124,18 +135,18 @@ export default function SettingsPage() {
       ],
     },
     {
-      title: 'Support',
+      title: t('settings.support'),
       items: [
         {
           icon: HelpCircle,
-          label: 'Help Center',
-          description: 'Get help and support',
+          label: t('settings.helpCenter'),
+          description: t('settings.getHelp'),
           type: 'action',
           onClick: () => alert('Help center coming soon!'),
         },
         {
           icon: Info,
-          label: 'About',
+          label: t('settings.about'),
           description: 'MyJanji v3.0.0',
           type: 'action',
           onClick: () => alert('MyJanji - Digital Contract Management Platform\nVersion 3.0.0'),
@@ -146,7 +157,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <Header title="Settings" showLogout />
+      <Header title={t('settings.title')} showLogout />
 
       <div className="px-4 mt-4 space-y-6">
         {settingsSections.map((section, sectionIndex) => (
@@ -166,17 +177,14 @@ export default function SettingsPage() {
                   onClick={item.onClick}
                 >
                   <div className="flex items-center gap-3 flex-1">
-                    <div className={`p-2 rounded-lg ${
-                      item.danger ? 'bg-red-100' : 'bg-primary/10'
-                    }`}>
-                      <item.icon className={`h-5 w-5 ${
-                        item.danger ? 'text-red-600' : 'text-primary'
-                      }`} />
+                    <div className={`p-2 rounded-lg ${item.danger ? 'bg-red-100' : 'bg-primary/10'
+                      }`}>
+                      <item.icon className={`h-5 w-5 ${item.danger ? 'text-red-600' : 'text-primary'
+                        }`} />
                     </div>
                     <div className="flex-1">
-                      <p className={`font-medium ${
-                        item.danger ? 'text-red-600' : 'text-header'
-                      }`}>
+                      <p className={`font-medium ${item.danger ? 'text-red-600' : 'text-header'
+                        }`}>
                         {item.label}
                       </p>
                       <p className="text-xs text-body/50">{item.description}</p>
@@ -219,10 +227,53 @@ export default function SettingsPage() {
             onClick={handleLogout}
             className="border-red-200 text-red-600 hover:bg-red-50"
           >
-            Logout
+            {t('settings.logout')}
           </Button>
         </div>
       </div>
+
+      {/* Language Selection Modal */}
+      {showLanguageModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-surface rounded-2xl p-6 max-w-sm w-full"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Globe className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="text-lg font-bold text-header">{t('settings.language')}</h3>
+            </div>
+            <div className="space-y-2 mb-6">
+              <button
+                onClick={() => changeLanguage('en')}
+                className={`w-full flex items-center justify-between p-4 rounded-xl border ${currentLanguage === 'en' ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+              >
+                <span className="font-medium text-header">English</span>
+                {currentLanguage === 'en' && <Check className="h-5 w-5 text-primary" />}
+              </button>
+              <button
+                onClick={() => changeLanguage('bm')}
+                className={`w-full flex items-center justify-between p-4 rounded-xl border ${currentLanguage === 'bm' ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+              >
+                <span className="font-medium text-header">Bahasa Melayu</span>
+                {currentLanguage === 'bm' && <Check className="h-5 w-5 text-primary" />}
+              </button>
+            </div>
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowLanguageModal(false)}
+            >
+              {t('common.close')}
+            </Button>
+          </motion.div>
+        </div>
+      )}
 
       {/* Delete Account Confirmation Modal */}
       {showDeleteConfirm && (
@@ -236,10 +287,10 @@ export default function SettingsPage() {
               <div className="p-2 rounded-lg bg-red-100">
                 <Trash2 className="h-5 w-5 text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-header">Delete Account</h3>
+              <h3 className="text-lg font-bold text-header">{t('settings.deleteAccount')}</h3>
             </div>
             <p className="text-body/60 mb-6">
-              Are you sure you want to delete your account? This action cannot be undone and all your contracts will be permanently deleted.
+              {t('settings.logoutConfirm')}
             </p>
             <div className="flex gap-3">
               <Button
@@ -247,14 +298,14 @@ export default function SettingsPage() {
                 fullWidth
                 onClick={() => setShowDeleteConfirm(false)}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 fullWidth
                 onClick={handleDeleteAccount}
                 className="bg-red-600 hover:bg-red-700"
               >
-                Delete
+                {t('common.delete')}
               </Button>
             </div>
           </motion.div>

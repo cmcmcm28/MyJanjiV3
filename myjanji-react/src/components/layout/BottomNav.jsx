@@ -1,18 +1,20 @@
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Home, FileText, PlusCircle, User, Flag } from 'lucide-react'
 
 const navItems = [
-  { path: '/dashboard', icon: Home, label: 'Home' },
-  { path: '/contracts', icon: FileText, label: 'Contracts' },
-  { path: '/create-contract', icon: PlusCircle, label: 'Create', isMain: true },
-  { path: '/profile', icon: User, label: 'Profile' },
-  { path: '/enforcement', icon: Flag, label: 'Enforcement' },
+  { path: '/dashboard', icon: Home, labelKey: 'nav.home' },
+  { path: '/contracts', icon: FileText, labelKey: 'nav.contracts' },
+  { path: '/create-contract', icon: PlusCircle, labelKey: 'nav.create', isMain: true },
+  { path: '/profile', icon: User, labelKey: 'nav.profile' },
+  { path: '/enforcement', icon: Flag, labelKey: 'enforcement' },
 ]
 
 export default function BottomNav() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   return (
     <motion.nav
@@ -21,8 +23,8 @@ export default function BottomNav() {
       className="fixed bottom-0 left-0 right-0 bg-surface border-t border-gray-100 px-2 py-2 z-40"
     >
       <div className="max-w-lg mx-auto flex items-center justify-around">
-        {navItems.map(({ path, icon: Icon, label, isMain }) => {
-          const isActive = location.pathname === path || 
+        {navItems.map(({ path, icon: Icon, labelKey, isMain }) => {
+          const isActive = location.pathname === path ||
             (path === '/dashboard' && (location.pathname === '/' || location.pathname.startsWith('/dashboard'))) ||
             (path === '/contracts' && location.pathname.startsWith('/contract')) ||
             (path === '/profile' && location.pathname.startsWith('/profile')) ||
@@ -53,7 +55,7 @@ export default function BottomNav() {
               `}
             >
               <Icon className="h-5 w-5" strokeWidth={1.5} />
-              <span className="text-xs font-medium">{label}</span>
+              <span className="text-xs font-medium">{t(labelKey)}</span>
               {isActive && (
                 <motion.div
                   layoutId="activeTab"

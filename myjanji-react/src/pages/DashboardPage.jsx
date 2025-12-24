@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import {
   FileText,
@@ -37,12 +38,12 @@ import QRCodeDisplay from '../components/features/QRCodeDisplay'
 import pdfService from '../services/pdfService'
 import { DashboardSkeleton } from '../components/ui/Skeleton'
 
-// Helper to get greeting based on time
-const getGreeting = () => {
+// Helper to get greeting key based on time
+const getGreetingKey = () => {
   const hour = new Date().getHours()
-  if (hour < 12) return 'Selamat Pagi'
-  if (hour < 18) return 'Selamat Petang'
-  return 'Selamat Malam'
+  if (hour < 12) return 'dashboard.greeting.morning'
+  if (hour < 18) return 'dashboard.greeting.afternoon'
+  return 'dashboard.greeting.evening'
 }
 
 // Helper to format date nicely
@@ -66,6 +67,7 @@ const getDaysUntil = (date) => {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { currentUser, isAuthenticated, availableUsers } = useAuth()
   const { contracts, getAllContractsForUser, getPendingContractsForUser, stats, loadUserContracts, loading } = useContracts()
   const [activeTab, setActiveTab] = useState('all')
@@ -214,9 +216,9 @@ export default function DashboardPage() {
           className="mb-4"
         >
           <h1 className="text-2xl font-bold text-header">
-            {getGreeting()}, <span className="text-primary">{currentUser.name?.split(' ')[0]}</span>.
+            {t(getGreetingKey())}, <span className="text-primary">{currentUser.name?.split(' ')[0]}</span>.
           </h1>
-          <p className="text-body/60 text-sm mt-1">Manage your agreements efficiently</p>
+          <p className="text-body/60 text-sm mt-1">{t('dashboard.manageEfficiently')}</p>
         </motion.div>
 
         {/* Search Bar */}
@@ -224,7 +226,7 @@ export default function DashboardPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-body/40" />
           <input
             type="text"
-            placeholder="Search contracts..."
+            placeholder={t('dashboard.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-surface rounded-xl pl-10 pr-4 py-3 text-body placeholder:text-body/40 card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -263,7 +265,7 @@ export default function DashboardPage() {
 
       {/* 2. Agreement Summary */}
       < div className="px-4 mt-6" >
-        <h2 className="text-lg font-bold text-header mb-3">Agreement Summary</h2>
+        <h2 className="text-lg font-bold text-header mb-3">{t('dashboard.agreementSummary')}</h2>
         <div className="grid grid-cols-3 gap-3">
           <motion.div
             whileHover={{ scale: 1.02 }}
@@ -273,7 +275,7 @@ export default function DashboardPage() {
           >
             <TrendingUp className="h-6 w-6 text-white/80 mb-2" />
             <p className="text-2xl font-bold text-white">{userStats.ongoing}</p>
-            <p className="text-xs text-white/80">Active</p>
+            <p className="text-xs text-white/80">{t('dashboard.active')}</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.02 }}
@@ -283,7 +285,7 @@ export default function DashboardPage() {
           >
             <Clock className="h-6 w-6 text-white/80 mb-2" />
             <p className="text-2xl font-bold text-white">{userStats.pending}</p>
-            <p className="text-xs text-white/80">Pending</p>
+            <p className="text-xs text-white/80">{t('dashboard.pending')}</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.02 }}
@@ -293,7 +295,7 @@ export default function DashboardPage() {
           >
             <CheckCircle className="h-6 w-6 text-white/80 mb-2" />
             <p className="text-2xl font-bold text-white">{userStats.completed}</p>
-            <p className="text-xs text-white/80">Completed</p>
+            <p className="text-xs text-white/80">{t('dashboard.completed')}</p>
           </motion.div>
         </div>
       </div >
@@ -303,12 +305,12 @@ export default function DashboardPage() {
         upcomingDeadlines.length > 0 && (
           <div className="px-4 mt-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-header">Upcoming Deadlines</h2>
+              <h2 className="text-lg font-bold text-header">{t('dashboard.upcomingDeadlines')}</h2>
               <button
                 onClick={() => navigate('/contracts')}
                 className="text-sm text-primary flex items-center gap-1"
               >
-                View All <ChevronRight className="h-4 w-4" />
+                {t('dashboard.viewAll')} <ChevronRight className="h-4 w-4" />
               </button>
             </div>
             <div className="space-y-2">
@@ -330,7 +332,7 @@ export default function DashboardPage() {
                       <div className="text-right">
                         <p className={`text-sm font-bold ${daysLeft <= 3 ? 'text-red-500' : daysLeft <= 7 ? 'text-amber-500' : 'text-green-500'
                           }`}>
-                          {daysLeft} days
+                          {daysLeft} {t('dashboard.daysLeft')}
                         </p>
                         <p className="text-xs text-body/50">{formatDate(contract.dueDate)}</p>
                       </div>
@@ -348,9 +350,9 @@ export default function DashboardPage() {
         pendingForSigning.length > 0 && (
           <div className="px-4 mt-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-header">Awaiting Your Signature</h2>
+              <h2 className="text-lg font-bold text-header">{t('dashboard.awaitingYourSignature')}</h2>
               <span className="text-xs bg-status-pending/10 text-status-pending px-2 py-1 rounded-full font-medium">
-                {pendingForSigning.length} pending
+                {pendingForSigning.length} {t('dashboard.pending').toLowerCase()}
               </span>
             </div>
             <div className="space-y-2">
@@ -371,7 +373,7 @@ export default function DashboardPage() {
                       size="sm"
                       onClick={() => handleSignContract(contract)}
                     >
-                      Sign Now
+                      {t('dashboard.signNow')}
                     </Button>
                   </div>
                 </motion.div>
@@ -384,12 +386,12 @@ export default function DashboardPage() {
       {/* 4. Recent Activity */}
       <div className="px-4 mt-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-header">Recent Activity</h2>
+          <h2 className="text-lg font-bold text-header">{t('dashboard.recentActivity')}</h2>
           <button
             onClick={() => navigate('/contracts')}
             className="text-sm text-primary flex items-center gap-1"
           >
-            View All <ChevronRight className="h-4 w-4" />
+            {t('dashboard.viewAll')} <ChevronRight className="h-4 w-4" />
           </button>
         </div>
         {recentActivity.length > 0 ? (
