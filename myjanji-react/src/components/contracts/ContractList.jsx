@@ -2,13 +2,16 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ContractCard from './ContractCard'
 import { FileX } from 'lucide-react'
 import { SkeletonContractList } from '../ui/Skeleton'
+import { useRef, useEffect } from 'react'
 
 export default function ContractList({
   contracts,
   onContractClick,
   emptyMessage = 'No contracts found',
   loading = false,
-  skeletonCount = 3
+  skeletonCount = 3,
+  getUserById,
+  highlightedId
 }) {
   // Show skeleton while loading
   if (loading) {
@@ -31,20 +34,31 @@ export default function ContractList({
   return (
     <div className="space-y-3">
       <AnimatePresence mode="popLayout">
-        {contracts.map((contract, index) => (
-          <motion.div
-            key={contract.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, x: -100 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <ContractCard
-              contract={contract}
-              onClick={() => onContractClick?.(contract)}
-            />
-          </motion.div>
-        ))}
+        {contracts.map((contract, index) => {
+          const isHighlighted = highlightedId && contract.id === highlightedId
+          
+          return (
+            <motion.div
+              key={contract.id}
+              id={`contract-${contract.id}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ 
+                opacity: 1, 
+                y: 0,
+                scale: isHighlighted ? [1, 1.02, 1] : 1
+              }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <ContractCard
+                contract={contract}
+                onClick={() => onContractClick?.(contract)}
+                getUserById={getUserById}
+                isHighlighted={isHighlighted}
+              />
+            </motion.div>
+          )
+        })}
       </AnimatePresence>
     </div>
   )

@@ -676,51 +676,50 @@ export default function RegisterPage() {
                     </div>
                   )}
 
-                  {/* NFC Chip ID Input (optimized for USB Keyboard Readers) */}
-                  <div className="mb-6">
-                    <p className="text-sm text-body/60 mb-2">
-                      Ready to scan. Tap your card on the reader.
-                    </p>
-                    <div className="relative">
-                      <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                      <input
-                        ref={(input) => {
-                          // Auto-focus when mounting or updating
-                          if (input && currentStep === 3) {
-                            input.focus()
+                  {/* NFC Chip ID Input - Hidden input with status indicator overlay */}
+                  <div className="mb-6 relative">
+                    {/* Hidden input that captures NFC reader keyboard input */}
+                    <input
+                      ref={(input) => {
+                        // Auto-focus when mounting or updating
+                        if (input && currentStep === 3) {
+                          input.focus()
+                        }
+                      }}
+                      type="password"
+                      value={nfcChipId}
+                      onChange={(e) => setNfcChipId(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          if (nfcChipId) {
+                            handleCompleteRegistration()
                           }
-                        }}
-                        type="password"
-                        value={nfcChipId}
-                        onChange={(e) => setNfcChipId(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            if (nfcChipId) {
-                              handleCompleteRegistration()
-                            }
-                          }
-                        }}
-                        // Keep focus for continuous scanning if needed
-                        onBlur={(e) => {
-                          // Optional: force focus back if you want exclusive reader mode
-                          // e.target.focus() 
-                        }}
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-mono text-center text-lg tracking-wider"
-                        placeholder="Waiting for card..."
-                        autoFocus
-                      />
+                        }
+                      }}
+                      onBlur={(e) => {
+                        // Keep focus for continuous scanning
+                        if (currentStep === 3) {
+                          e.target.focus()
+                        }
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-default"
+                      autoFocus
+                    />
+                    {/* Status indicator overlay */}
+                    <div className={`w-full p-4 rounded-xl flex items-center justify-center gap-3 ${nfcChipId ? 'bg-green-50' : 'bg-primary/5'}`}>
+                      {nfcChipId ? (
+                        <>
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <span className="text-green-700 font-medium">Card detected!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="h-5 w-5 text-primary-mid animate-spin" />
+                          <span className="text-primary-mid font-medium">Listening for NFC signal...</span>
+                        </>
+                      )}
                     </div>
-                    {nfcChipId ? (
-                      <div className="flex items-center justify-center gap-2 text-green-600 text-sm mt-2">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Card detected! Click Complete Registration to continue.</span>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-center text-body/40 mt-2">
-                        Reader mode active. Tap your ID card.
-                      </p>
-                    )}
                   </div>
 
                   <Button

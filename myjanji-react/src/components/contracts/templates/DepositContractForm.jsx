@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import Input, { Select, Textarea } from '../../ui/Input'
 import Button from '../../ui/Button'
-import { Calendar, User, CreditCard, FileText, CheckCircle, ArrowRight, ArrowLeft, Check, ShoppingBag } from 'lucide-react'
+import { Calendar, User, CreditCard, FileText, CheckCircle, ArrowRight, ArrowLeft, Check, ShoppingBag, Star } from 'lucide-react'
+import { calculateTrustScore, getTrustScoreColor, getContractStats, formatTrustScore } from '../../../utils/trustScore'
 
 const steps = [
     { title: 'Basic Details', description: 'Contract info and parties' },
@@ -99,24 +100,41 @@ export default function DepositContractForm({ formData, handleChange, acceptees 
                             </div>
                         )}
 
-                        {formData.accepteeVerified && formData.accepteeName && (
-                            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Check className="h-5 w-5 text-green-600" />
-                                    <span className="font-semibold text-green-700">Party Verified!</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-body/60">Name:</span>
-                                        <p className="font-medium text-header">{formData.accepteeName}</p>
+                        {formData.accepteeVerified && formData.accepteeName && (() => {
+                            // Calculate trust score
+                            const accepteeUser = acceptees.find(u => u.id === formData.accepteeId)
+                            const accepteeStats = getContractStats(accepteeUser?.contracts || [], formData.accepteeId)
+                            const trustScore = calculateTrustScore(accepteeStats)
+                            const trustColors = getTrustScoreColor(trustScore)
+
+                            return (
+                                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Check className="h-5 w-5 text-green-600" />
+                                        <span className="font-semibold text-green-700">Party Verified!</span>
                                     </div>
-                                    <div>
-                                        <span className="text-body/60">IC Number:</span>
-                                        <p className="font-medium text-header">{formData.accepteeIdNumber}</p>
+                                    <div className="grid grid-cols-3 gap-3 text-sm">
+                                        <div>
+                                            <span className="text-body/60">Name:</span>
+                                            <p className="font-medium text-header">{formData.accepteeName}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-body/60">IC Number:</span>
+                                            <p className="font-medium text-header">{formData.accepteeIdNumber}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-body/60">Trust Score:</span>
+                                            <div className="flex items-center gap-1">
+                                                <Star className={`h-4 w-4 ${trustColors.text}`} fill="currentColor" />
+                                                <span className={`font-bold ${trustColors.text}`}>
+                                                    {formatTrustScore(trustScore)}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )
+                        })()}
 
                         <Textarea
                             label="Topic / Description"

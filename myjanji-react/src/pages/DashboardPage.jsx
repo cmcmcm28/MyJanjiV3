@@ -25,6 +25,11 @@ import {
   Banknote,
   Briefcase,
   ShoppingBag,
+  PenLine,
+  Users,
+  Copy,
+  Shield,
+  ExternalLink,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContracts } from '../context/ContractContext'
@@ -75,6 +80,15 @@ export default function DashboardPage() {
   const [selectedContract, setSelectedContract] = useState(null)
   const [showQRModal, setShowQRModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  // Update current time every minute for real-time progress bars
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 60000) // Update every minute
+    return () => clearInterval(interval)
+  }, [])
 
   // Helper to get user details
   const getUserById = (userId) => {
@@ -221,16 +235,18 @@ export default function DashboardPage() {
           <p className="text-body/60 text-sm mt-1">{t('dashboard.manageEfficiently')}</p>
         </motion.div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-body/40" />
-          <input
-            type="text"
-            placeholder={t('dashboard.searchPlaceholder')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-surface rounded-xl pl-10 pr-4 py-3 text-body placeholder:text-body/40 card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
+        {/* Search Bar - Sticky */}
+        <div className="sticky top-0 z-10 bg-background py-2 -mx-4 px-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-body/40" />
+            <input
+              type="text"
+              placeholder={t('dashboard.searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-surface rounded-xl pl-10 pr-4 py-3 text-body placeholder:text-body/40 card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
         </div>
 
         {/* Search Results Dropdown */}
@@ -261,41 +277,44 @@ export default function DashboardPage() {
             ))}
           </Card>
         )}
-      </div >
+      </div>
 
       {/* 2. Agreement Summary */}
-      < div className="px-4 mt-6" >
-        <h2 className="text-lg font-bold text-header mb-3">{t('dashboard.agreementSummary')}</h2>
+      <div className="px-4 mt-6">
+        <h2 className="text-lg font-bold text-header mb-4">{t('dashboard.agreementSummary')}</h2>
         <div className="grid grid-cols-3 gap-3">
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('/contracts?filter=ongoing')}
-            className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 cursor-pointer"
+            className="bg-gradient-to-br from-emerald-500 via-green-500 to-green-600 rounded-xl p-4 cursor-pointer relative overflow-hidden shadow-md"
           >
-            <TrendingUp className="h-6 w-6 text-white/80 mb-2" />
-            <p className="text-2xl font-bold text-white">{userStats.ongoing}</p>
-            <p className="text-xs text-white/80">{t('dashboard.active')}</p>
+            <TrendingUp className="absolute -bottom-2 -right-2 h-16 w-16 text-white/10" strokeWidth={1.5} />
+            <TrendingUp className="h-5 w-5 text-white/80 mb-1" strokeWidth={1.5} />
+            <p className="text-4xl font-bold text-white">{userStats.ongoing}</p>
+            <p className="text-xs text-white/80 font-medium">{t('dashboard.active')}</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('/contracts?filter=pending')}
-            className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-4 cursor-pointer"
+            className="bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-xl p-4 cursor-pointer relative overflow-hidden shadow-md"
           >
-            <Clock className="h-6 w-6 text-white/80 mb-2" />
-            <p className="text-2xl font-bold text-white">{userStats.pending}</p>
-            <p className="text-xs text-white/80">{t('dashboard.pending')}</p>
+            <Clock className="absolute -bottom-2 -right-2 h-16 w-16 text-white/10" strokeWidth={1.5} />
+            <Clock className="h-5 w-5 text-white/80 mb-1" strokeWidth={1.5} />
+            <p className="text-4xl font-bold text-white">{userStats.pending}</p>
+            <p className="text-xs text-white/80 font-medium">{t('dashboard.pending')}</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('/contracts?filter=completed')}
-            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 cursor-pointer"
+            className="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-xl p-4 cursor-pointer relative overflow-hidden shadow-md"
           >
-            <CheckCircle className="h-6 w-6 text-white/80 mb-2" />
-            <p className="text-2xl font-bold text-white">{userStats.completed}</p>
-            <p className="text-xs text-white/80">{t('dashboard.completed')}</p>
+            <CheckCircle className="absolute -bottom-2 -right-2 h-16 w-16 text-white/10" strokeWidth={1.5} />
+            <CheckCircle className="h-5 w-5 text-white/80 mb-1" strokeWidth={1.5} />
+            <p className="text-4xl font-bold text-white">{userStats.completed}</p>
+            <p className="text-xs text-white/80 font-medium">{t('dashboard.completed')}</p>
           </motion.div>
         </div>
       </div >
@@ -304,7 +323,7 @@ export default function DashboardPage() {
       {
         upcomingDeadlines.length > 0 && (
           <div className="px-4 mt-6">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-header">{t('dashboard.upcomingDeadlines')}</h2>
               <button
                 onClick={() => navigate('/contracts')}
@@ -316,18 +335,27 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {upcomingDeadlines.map((contract) => {
                 const daysLeft = getDaysUntil(contract.dueDate)
+                // Calculate time elapsed percentage (assuming contract started at signatureDate)
+                const startDate = new Date(contract.signatureDate || contract.createdAt || Date.now() - 30 * 24 * 60 * 60 * 1000)
+                const endDate = new Date(contract.dueDate)
+                const totalDuration = endDate - startDate
+                const elapsed = currentTime - startDate
+                const progressPercent = Math.min(Math.max((elapsed / totalDuration) * 100, 0), 100)
+                
                 return (
                   <motion.div
                     key={contract.id}
                     whileHover={{ scale: 1.01 }}
                     onClick={() => handleContractClick(contract)}
-                    className={`bg-surface rounded-xl p-4 card-shadow cursor-pointer border-l-4 ${daysLeft <= 3 ? 'border-red-500' : daysLeft <= 7 ? 'border-amber-500' : 'border-green-500'
+                    className={`bg-surface rounded-xl p-4 shadow-sm cursor-pointer border-l-4 ${daysLeft <= 3 ? 'border-red-500' : daysLeft <= 7 ? 'border-amber-500' : 'border-green-500'
                       }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex-1">
                         <p className="font-semibold text-header">{contract.name}</p>
-                        <p className="text-xs text-body/50">{contract.topic}</p>
+                        <p className="text-xs text-body/50">
+                          With: {contract.accepteeName || getUserById(contract.accepteeId)?.name || getUserById(contract.userId)?.name || 'Unknown'}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className={`text-sm font-bold ${daysLeft <= 3 ? 'text-red-500' : daysLeft <= 7 ? 'text-amber-500' : 'text-green-500'
@@ -335,6 +363,21 @@ export default function DashboardPage() {
                           {daysLeft} {t('dashboard.daysLeft')}
                         </p>
                         <p className="text-xs text-body/50">{formatDate(contract.dueDate)}</p>
+                      </div>
+                    </div>
+                    {/* Time Elapsed Progress Bar */}
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between text-xs text-body/50 mb-1">
+                        <span>Time Elapsed</span>
+                        <span>{Math.round(progressPercent)}%</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progressPercent}%` }}
+                          transition={{ duration: 0.5, ease: 'easeOut' }}
+                          className={`h-full rounded-full ${progressPercent >= 90 ? 'bg-red-500' : progressPercent >= 70 ? 'bg-amber-500' : 'bg-green-500'}`}
+                        />
                       </div>
                     </div>
                   </motion.div>
@@ -349,7 +392,7 @@ export default function DashboardPage() {
       {
         pendingForSigning.length > 0 && (
           <div className="px-4 mt-6">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-header">{t('dashboard.awaitingYourSignature')}</h2>
               <span className="text-xs bg-status-pending/10 text-status-pending px-2 py-1 rounded-full font-medium">
                 {pendingForSigning.length} {t('dashboard.pending').toLowerCase()}
@@ -360,11 +403,11 @@ export default function DashboardPage() {
                 <motion.div
                   key={contract.id}
                   whileHover={{ scale: 1.01 }}
-                  className="bg-surface rounded-xl p-4 card-shadow border-l-4 border-status-pending"
+                  className="bg-surface rounded-xl p-4 shadow-sm border-l-4 border-status-pending"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-header">{contract.name}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-header truncate">{contract.name}</p>
                       <p className="text-xs text-body/50">
                         From: {contract.creatorName || getUserById(contract.userId)?.name || 'Unknown'}
                       </p>
@@ -372,8 +415,10 @@ export default function DashboardPage() {
                     <Button
                       size="sm"
                       onClick={() => handleSignContract(contract)}
+                      icon={PenLine}
+                      className="shrink-0"
                     >
-                      {t('dashboard.signNow')}
+                      Review & Sign
                     </Button>
                   </div>
                 </motion.div>
@@ -385,7 +430,7 @@ export default function DashboardPage() {
 
       {/* 4. Recent Activity */}
       <div className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-header">{t('dashboard.recentActivity')}</h2>
           <button
             onClick={() => navigate('/contracts')}
@@ -422,22 +467,32 @@ export default function DashboardPage() {
                 <div
                   key={contract.id}
                   onClick={() => handleContractClick(contract)}
-                  className="p-4 hover:bg-gray-50 cursor-pointer flex items-center gap-3"
+                  className="p-4 hover:bg-gray-50 hover:shadow-md cursor-pointer flex items-center gap-3 transition-all duration-200"
                 >
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${bgColor}`}>
                     <Icon className={`h-5 w-5 ${iconColor}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-header text-sm truncate">{contract.name}</p>
-                    <p className="text-xs text-body/50 truncate">{contract.topic}</p>
+                    <p className="text-xs text-body/50 truncate">
+                      With: {contract.accepteeName || getUserById(contract.accepteeId)?.name || getUserById(contract.userId)?.name || 'Unknown'}
+                    </p>
                     <p className="text-xs text-body/40">{formatDate(contract.signatureDate)}</p>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full text-white shrink-0
-                    ${contract.status === 'Ongoing' ? 'bg-status-ongoing' : ''}
-                    ${contract.status === 'Pending' ? 'bg-status-pending' : ''}
-                    ${contract.status === 'Completed' ? 'bg-status-completed' : ''}
-                    ${contract.status === 'Breached' ? 'bg-status-breached' : ''}
+                  <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full text-white font-medium shrink-0
+                    ${contract.status === 'Ongoing' ? 'bg-green-500' : ''}
+                    ${contract.status === 'Pending' ? 'bg-orange-500' : ''}
+                    ${contract.status === 'Completed' ? 'bg-blue-500' : ''}
+                    ${contract.status === 'Breached' ? 'bg-red-500' : ''}
+                    ${contract.status === 'Declined' ? 'bg-gray-400' : ''}
                   `}>
+                    <span className={`w-1.5 h-1.5 rounded-full animate-pulse
+                      ${contract.status === 'Ongoing' ? 'bg-green-300' : ''}
+                      ${contract.status === 'Pending' ? 'bg-orange-300' : ''}
+                      ${contract.status === 'Completed' ? 'bg-blue-300' : ''}
+                      ${contract.status === 'Breached' ? 'bg-red-300' : ''}
+                      ${contract.status === 'Declined' ? 'bg-gray-300' : ''}
+                    `} />
                     {contract.status}
                   </span>
                 </div>
@@ -452,50 +507,24 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* 5. Quick Action Shortcuts */}
-      <div className="px-4 mt-6">
-        <h2 className="text-lg font-bold text-header mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/create-contract')}
-            className="bg-gradient-to-br from-primary to-primary/80 rounded-xl p-4 cursor-pointer"
-          >
-            <Plus className="h-8 w-8 text-white mb-2" />
-            <p className="font-bold text-white">New Contract</p>
-            <p className="text-xs text-white/70">Create a new agreement</p>
-          </motion.div>
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/contracts')}
-            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
-          >
-            <Search className="h-8 w-8 text-primary mb-2" />
-            <p className="font-bold text-header">Search Contract</p>
-            <p className="text-xs text-body/50">Find existing agreements</p>
-          </motion.div>
-        </div>
-      </div>
-
       {/* 6. Discussion & Meeting */}
       <div className="px-4 mt-6">
-        <h2 className="text-lg font-bold text-header mb-3">Discussion & Meeting</h2>
+        <h2 className="text-lg font-bold text-header mb-4">Discussion & Meeting</h2>
         <div className="grid grid-cols-2 gap-3">
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
+            className="bg-surface rounded-xl p-4 shadow-sm cursor-pointer"
           >
             <MessageSquare className="h-6 w-6 text-purple-500 mb-2" />
             <p className="font-semibold text-header text-sm">Upcoming</p>
-            <p className="text-xs text-body/50">0 discussions</p>
+            <p className="text-xs text-body/40 italic">No upcoming discussions</p>
+            <button className="text-xs text-primary mt-1 hover:underline">Schedule one?</button>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
+            className="bg-surface rounded-xl p-4 shadow-sm cursor-pointer"
           >
             <Calendar className="h-6 w-6 text-blue-500 mb-2" />
             <p className="font-semibold text-header text-sm">Schedule</p>
@@ -504,16 +533,17 @@ export default function DashboardPage() {
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="bg-surface rounded-xl p-4 card-shadow cursor-pointer"
+            className="bg-surface rounded-xl p-4 shadow-sm cursor-pointer"
           >
             <History className="h-6 w-6 text-gray-500 mb-2" />
             <p className="font-semibold text-header text-sm">Past Meetings</p>
-            <p className="text-xs text-body/50">View history</p>
+            <p className="text-xs text-body/40 italic">No past meetings</p>
+            <button className="text-xs text-primary mt-1 hover:underline">View all?</button>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 cursor-pointer"
+            className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 cursor-pointer shadow-md"
           >
             <PlayCircle className="h-6 w-6 text-white mb-2" />
             <p className="font-semibold text-white text-sm">Instant Meet</p>
@@ -530,134 +560,213 @@ export default function DashboardPage() {
         size="lg"
       >
         {selectedContract && (
-          <div className="space-y-4">
-            {/* Status Badge */}
-            <div className="flex items-center justify-between">
-              <span className={`
-                inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-white
-                ${selectedContract.status === 'Ongoing' ? 'bg-status-ongoing' : ''}
-                ${selectedContract.status === 'Pending' ? 'bg-status-pending' : ''}
-                ${selectedContract.status === 'Completed' ? 'bg-status-completed' : ''}
-                ${selectedContract.status === 'Breached' ? 'bg-status-breached' : ''}
-                ${selectedContract.status === 'Declined' ? 'bg-gray-500' : ''}
-              `}>
-                {selectedContract.status}
-              </span>
-              <span className="text-sm font-mono text-body/50">{selectedContract.id}</span>
-            </div>
-
-            {/* Decline Info */}
-            {selectedContract.status === 'Declined' && selectedContract.declinedAt && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <p className="text-sm font-semibold text-red-800 mb-2">Contract Declined</p>
-                <p className="text-xs text-red-700 mb-1">
-                  Declined on {new Date(selectedContract.declinedAt).toLocaleDateString('en-MY', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
-                {selectedContract.declineReason && (
-                  <div className="mt-2 pt-2 border-t border-red-200">
-                    <p className="text-xs text-red-600 font-medium mb-1">Reason:</p>
-                    <p className="text-xs text-red-700 italic">"{selectedContract.declineReason}"</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Contract Info */}
-            <div>
-              <h3 className="text-xl font-bold text-header">{selectedContract.name}</h3>
-              <p className="text-body/60">{selectedContract.topic}</p>
-            </div>
-
-            {/* Parties */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-xs text-body/50 mb-1">Creator</p>
-                <p className="font-medium text-header text-sm">
-                  {selectedContract.creatorName || getUserById(selectedContract.userId)?.name || 'Unknown'}
-                </p>
-                {selectedContract.creatorEmail && (
-                  <p className="text-xs text-body/50 truncate">{selectedContract.creatorEmail}</p>
-                )}
-              </div>
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-xs text-body/50 mb-1">Acceptee</p>
-                <p className="font-medium text-header text-sm">
-                  {selectedContract.accepteeName || getUserById(selectedContract.accepteeId)?.name || 'Unknown'}
-                </p>
-                {selectedContract.accepteeEmail && (
-                  <p className="text-xs text-body/50 truncate">{selectedContract.accepteeEmail}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-body/50 mb-1">Signature Date</p>
-                <p className="font-medium text-header">
-                  {selectedContract.signatureDate?.toLocaleDateString('en-MY') || 'N/A'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-body/50 mb-1">Due Date</p>
-                <p className="font-medium text-header">
-                  {selectedContract.dueDate?.toLocaleDateString('en-MY') || 'N/A'}
-                </p>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
-              {selectedContract.pdfUrl && (
-                <Button
-                  variant="outline"
-                  icon={Eye}
-                  onClick={() => window.open(selectedContract.pdfUrl, '_blank')}
-                >
-                  View PDF
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                icon={QrCode}
-                onClick={() => {
-                  setShowDetailsModal(false)
-                  handleViewQR(selectedContract)
-                }}
-              >
-                View QR
-              </Button>
-              <Button
-                variant="outline"
-                icon={Download}
-                onClick={() => handleDownloadPDF(selectedContract)}
-              >
-                Download PDF
-              </Button>
-              {selectedContract.status === 'Pending' && selectedContract.accepteeId === currentUser.id && (
-                <Button
-                  icon={FileText}
-                  onClick={() => handleSignContract(selectedContract)}
-                >
-                  Sign Contract
-                </Button>
-              )}
-              {selectedContract.status === 'Declined' && selectedContract.userId === currentUser.id && (
-                <Button
-                  variant="outline"
-                  icon={RefreshCw}
+          <div className="relative">
+            {/* Two-Tone Header Section */}
+            <div className="bg-blue-50 -mx-6 -mt-4 px-6 pt-4 pb-5 border-b border-blue-100">
+              {/* Status Badge & Contract ID */}
+              <div className="flex items-center justify-between mb-3">
+                <span className={`
+                  inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-white shadow-sm
+                  ${selectedContract.status === 'Ongoing' ? 'bg-status-ongoing' : ''}
+                  ${selectedContract.status === 'Pending' ? 'bg-status-pending' : ''}
+                  ${selectedContract.status === 'Completed' ? 'bg-status-completed' : ''}
+                  ${selectedContract.status === 'Breached' ? 'bg-status-breached' : ''}
+                  ${selectedContract.status === 'Declined' ? 'bg-gray-500' : ''}
+                `}>
+                  {selectedContract.status === 'Completed' && <CheckCircle size={14} />}
+                  {selectedContract.status}
+                </span>
+                <button
                   onClick={() => {
-                    setShowDetailsModal(false)
-                    handleResendContract(selectedContract)
+                    navigator.clipboard.writeText(selectedContract.id)
                   }}
+                  className="flex items-center gap-1.5 text-xs font-mono text-blue-600 hover:text-blue-800 transition-colors bg-white/70 px-2 py-1 rounded-lg"
                 >
-                  Resend Contract
-                </Button>
+                  <span className="truncate max-w-[120px]">{selectedContract.id}</span>
+                  <Copy size={12} />
+                </button>
+              </div>
+
+              {/* Contract Title */}
+              <h3 className="text-xl font-bold text-header">{selectedContract.name}</h3>
+              <p className="text-body/60 text-sm">{selectedContract.topic}</p>
+            </div>
+
+            {/* White Body Section */}
+            <div className="space-y-5 pt-5">
+              {/* Decline Info */}
+              {selectedContract.status === 'Declined' && selectedContract.declinedAt && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-red-800 mb-2">Contract Declined</p>
+                  <p className="text-xs text-red-700 mb-1">
+                    Declined on {new Date(selectedContract.declinedAt).toLocaleDateString('en-MY', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </p>
+                  {selectedContract.declineReason && (
+                    <div className="mt-2 pt-2 border-t border-red-200">
+                      <p className="text-xs text-red-600 font-medium mb-1">Reason:</p>
+                      <p className="text-xs text-red-700 italic">"{selectedContract.declineReason}"</p>
+                    </div>
+                  )}
+                </div>
               )}
+
+              {/* Parties - ID Card Layout */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Creator ID Card */}
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-primary-mid flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                      {(selectedContract.creatorName || getUserById(selectedContract.userId)?.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <p className="font-semibold text-header text-sm truncate">
+                          {selectedContract.creatorName || getUserById(selectedContract.userId)?.name || 'Unknown'}
+                        </p>
+                        <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                      </div>
+                      {selectedContract.creatorEmail && (
+                        <p className="text-xs text-body/50 truncate">{selectedContract.creatorEmail}</p>
+                      )}
+                      <span className="inline-block mt-1.5 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-medium rounded-full">Creator</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Acceptee ID Card */}
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                      {(selectedContract.accepteeName || getUserById(selectedContract.accepteeId)?.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <p className="font-semibold text-header text-sm truncate">
+                          {selectedContract.accepteeName || getUserById(selectedContract.accepteeId)?.name || 'Unknown'}
+                        </p>
+                        {selectedContract.status !== 'Pending' && <CheckCircle size={14} className="text-green-500 flex-shrink-0" />}
+                      </div>
+                      {selectedContract.accepteeEmail && (
+                        <p className="text-xs text-body/50 truncate">{selectedContract.accepteeEmail}</p>
+                      )}
+                      <span className="inline-block mt-1.5 px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded-full">Acceptee</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-xl p-4">
+                <div>
+                  <p className="text-xs text-body/50 mb-1 flex items-center gap-1">
+                    <Clock size={12} />
+                    Signature Date
+                  </p>
+                  <p className="font-medium text-header">
+                    {selectedContract.signatureDate?.toLocaleDateString('en-MY') || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-body/50 mb-1 flex items-center gap-1">
+                    <Clock size={12} />
+                    Due Date
+                  </p>
+                  <p className="font-medium text-header">
+                    {selectedContract.dueDate?.toLocaleDateString('en-MY') || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Digital Seal Stamp */}
+              {(selectedContract.status === 'Completed' || selectedContract.status === 'Ongoing') && (
+                <div className="absolute bottom-20 right-4 opacity-20 rotate-[-15deg] pointer-events-none">
+                  <div className="w-24 h-24 rounded-full border-4 border-green-600 flex flex-col items-center justify-center">
+                    <Shield size={20} className="text-green-600 mb-1" />
+                    <p className="text-[8px] font-bold text-green-600 text-center leading-tight">DIGITALLY<br/>SIGNED</p>
+                    <p className="text-[6px] text-green-600">MYJANJI</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions - Button Hierarchy */}
+              <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
+                {/* Primary Actions */}
+                <div className="flex flex-wrap gap-2">
+                  {selectedContract.pdfUrl && (
+                    <Button
+                      className="flex-1"
+                      icon={Eye}
+                      onClick={() => window.open(selectedContract.pdfUrl, '_blank')}
+                    >
+                      View Signed PDF
+                    </Button>
+                  )}
+                  {selectedContract.status === 'Pending' && selectedContract.accepteeId === currentUser.id && (
+                    <Button
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      icon={FileText}
+                      onClick={() => handleSignContract(selectedContract)}
+                    >
+                      Sign Contract
+                    </Button>
+                  )}
+                </div>
+
+                {/* Secondary Actions */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    icon={Download}
+                    onClick={() => handleDownloadPDF(selectedContract)}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    icon={QrCode}
+                    onClick={() => {
+                      setShowDetailsModal(false)
+                      handleViewQR(selectedContract)
+                    }}
+                  >
+                    View QR
+                  </Button>
+                  {selectedContract.status === 'Declined' && selectedContract.userId === currentUser.id && (
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      icon={RefreshCw}
+                      onClick={() => {
+                        setShowDetailsModal(false)
+                        handleResendContract(selectedContract)
+                      }}
+                    >
+                      Resend
+                    </Button>
+                  )}
+                </div>
+
+                {/* Tertiary Action - Blockchain Hash */}
+                {(selectedContract.status === 'Completed' || selectedContract.status === 'Ongoing') && (
+                  <button
+                    className="w-full text-center text-sm text-primary-mid hover:text-primary-dark transition-colors flex items-center justify-center gap-1.5 py-2"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`0x${selectedContract.id.replace(/-/g, '').slice(0, 40)}`)
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    View Blockchain Hash
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Webcam from 'react-webcam'
 import {
   Smartphone,
+  CreditCard,
   ScanFace,
   CheckCircle,
   Loader2,
@@ -19,9 +20,9 @@ import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 
 const steps = [
-  { id: 0, label: 'Tap NFC', icon: Smartphone },
-  { id: 1, label: 'Face Scan', icon: ScanFace },
-  { id: 2, label: 'Verified', icon: CheckCircle },
+  { id: 0, label: 'Tap', icon: CreditCard },
+  { id: 1, label: 'Scan', icon: ScanFace },
+  { id: 2, label: 'Access', icon: CheckCircle },
 ]
 
 export default function LoginPage() {
@@ -191,9 +192,9 @@ export default function LoginPage() {
             alt="MyJanji Logo"
             className="h-12 w-auto object-contain"
           />
-          <h1 className="text-3xl font-bold text-header">MyJanji</h1>
+          <h1 className="text-3xl font-bold text-primary-dark">MyJanji</h1>
         </div>
-        <p className="text-body/60 text-sm">Digital Contract Management Platform</p>
+        <p className="text-primary-mid text-sm font-medium">Digital Contract Management Platform</p>
 
         {/* Backend Status */}
         <div className={`inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-full text-xs font-medium ${backendOnline === null ? 'bg-gray-100 text-gray-500' :
@@ -227,7 +228,7 @@ export default function LoginPage() {
             </button>
 
             {/* Title */}
-            <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-secondary to-secondary-light bg-clip-text text-transparent">
+            <h2 className="text-2xl font-bold text-center mb-6 text-primary-dark">
               Sign In to MyJanji
             </h2>
 
@@ -279,12 +280,13 @@ export default function LoginPage() {
                   exit={{ opacity: 0, x: -20 }}
                   className="text-center"
                 >
-                  <div className="w-20 h-20 mx-auto mb-4 icon-container rounded-3xl flex items-center justify-center">
+                  <div className="w-20 h-20 mx-auto mb-4 icon-container rounded-3xl flex items-center justify-center relative">
                     <Smartphone className="h-10 w-10 text-primary-mid" strokeWidth={1.5} />
+                    <CreditCard className="h-5 w-5 text-primary-dark absolute -bottom-1 -right-1 animate-pulse" strokeWidth={2} />
                   </div>
                   <h3 className="text-xl font-bold text-header mb-2">Tap Your ID Card</h3>
                   <p className="text-body/60 text-sm mb-6">
-                    Place your registered MyKad on the NFC reader to identify yourself
+                    Tap your MyKad to begin secure verification
                   </p>
 
                   {/* Error Message */}
@@ -295,8 +297,9 @@ export default function LoginPage() {
                     </div>
                   )}
 
-                  {/* NFC Input */}
-                  <div className="mb-6">
+                  {/* NFC Input - Hidden input with status indicator overlay */}
+                  <div className="mb-6 relative">
+                    {/* Hidden input that captures NFC reader keyboard input */}
                     <input
                       ref={nfcInputRef}
                       type="password"
@@ -304,30 +307,40 @@ export default function LoginPage() {
                       onChange={(e) => setNfcChipId(e.target.value)}
                       onKeyDown={handleNfcKeyDown}
                       onBlur={() => nfcInputRef.current?.focus()}
-                      placeholder="Waiting for NFC card..."
-                      className="w-full p-4 text-center text-lg border-2 border-primary/30 rounded-xl focus:border-primary focus:outline-none"
+                      className="absolute inset-0 opacity-0 cursor-default"
                       autoFocus
                     />
-                    {nfcChipId && (
-                      <p className="text-sm text-green-600 mt-2">
-                        ✓ Card detected! Click "Find My Account" to continue.
-                      </p>
-                    )}
+                    {/* Status indicator overlay */}
+                    <div className={`w-full p-4 rounded-xl flex items-center justify-center gap-3 ${nfcChipId ? 'bg-green-50' : 'bg-primary/5'}`}>
+                      {nfcChipId ? (
+                        <>
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <span className="text-green-700 font-medium">Card detected!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="h-5 w-5 text-primary-mid animate-spin" />
+                          <span className="text-primary-mid font-medium">Listening for NFC signal...</span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Lookup Button */}
-                  <Button
-                    fullWidth
-                    onClick={handleNfcLookup}
-                    disabled={isLookingUp || !nfcChipId.trim()}
-                    loading={isLookingUp}
-                  >
-                    {isLookingUp ? 'Looking up...' : 'Find My Account'}
-                  </Button>
+                  {/* Lookup Button - Only show when card is detected */}
+                  {nfcChipId && (
+                    <Button
+                      fullWidth
+                      onClick={handleNfcLookup}
+                      disabled={isLookingUp}
+                      loading={isLookingUp}
+                    >
+                      {isLookingUp ? 'Verifying...' : 'Confirm Scan'}
+                    </Button>
+                  )}
 
                   {/* Demo Quick Access */}
                   <div className="mt-8 pt-6 border-t border-gray-100">
-                    <p className="text-xs text-body/40 mb-4">Quick Demo Access (Skip NFC & Face)</p>
+                    <p className="text-xs text-body/40 mb-4">Bypass Verification (Demo)</p>
                     <div className="grid grid-cols-2 gap-3">
                       {availableUsers.map((user) => (
                         <button

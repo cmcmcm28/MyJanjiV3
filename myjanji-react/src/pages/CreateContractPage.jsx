@@ -33,6 +33,7 @@ import Header from '../components/layout/Header'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input, { Textarea, Select } from '../components/ui/Input'
+import Modal from '../components/ui/Modal'
 import SignaturePad from '../components/features/SignaturePad'
 import NFCScanner from '../components/features/NFCScanner'
 import PDFPreviewModal from '../components/features/PDFPreviewModal'
@@ -121,6 +122,7 @@ export default function CreateContractPage() {
   const [hasConsented, setHasConsented] = useState(false)
   const [prepareId, setPrepareId] = useState(null)
   const [isPreparing, setIsPreparing] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
 
   const availableAcceptees = (availableUsers || Object.values(users)).filter(u => u.id !== currentUser?.id)
 
@@ -410,6 +412,7 @@ export default function CreateContractPage() {
   const handleCreateContract = async () => {
     if (!creatorSignature || !currentUser) return
 
+    setIsCreating(true)
     try {
       // If we have a prepareId, use the backend to finalize the contract
       if (prepareId) {
@@ -537,6 +540,8 @@ export default function CreateContractPage() {
       }
       const createdContract = await addContract(newContract)
       navigate('/contract-created', { state: { contract: createdContract } })
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -561,14 +566,14 @@ export default function CreateContractPage() {
             return (
               <motion.button
                 key={category.id}
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.02, y: -4 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleCategorySelect(category)}
                 className={`
                 w-full text-left rounded-3xl overflow-hidden transition-all shadow-lg
                 ${selectedCategory?.id === category.id
                     ? 'ring-2 ring-accent'
-                    : 'hover:shadow-xl'
+                    : 'hover:shadow-2xl'
                   }
               `}
               >
@@ -632,14 +637,14 @@ export default function CreateContractPage() {
           return (
             <motion.button
               key={template.id}
-              whileHover={{ scale: 1.02 }}
+              whileHover={{ scale: 1.02, y: -2, boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleTemplateSelect(template)}
               className={`
                 w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all
                 ${selectedTemplate?.id === template.id
-                  ? 'border-primary bg-primary/5'
-                  : 'border-gray-200 hover:border-primary/30 bg-white'
+                  ? 'border-primary bg-primary/5 shadow-lg'
+                  : 'border-gray-200 hover:border-primary/50 bg-white hover:bg-primary/5'
                 }
               `}
             >
@@ -677,6 +682,9 @@ export default function CreateContractPage() {
             onChange={(e) => handleInputChange('name', e.target.value)}
             placeholder="Enter contract name"
             icon={FileText}
+            required
+            tooltip="Give your contract a descriptive name that both parties can recognize"
+            isValid={formData.name?.length >= 3}
           />
           <Select
             label="Select Acceptee (Other Party)"
@@ -684,6 +692,9 @@ export default function CreateContractPage() {
             onChange={(e) => handleInputChange('accepteeId', e.target.value)}
             options={availableAcceptees.map(u => ({ value: u.id, label: `${u.name} (${u.ic})` }))}
             placeholder="Choose the other party"
+            required
+            tooltip="The person you're entering this contract with"
+            isValid={!!formData.accepteeId}
           />
         </>
       )}
@@ -723,6 +734,9 @@ export default function CreateContractPage() {
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
               placeholder="e.g., Dinner at Restaurant X"
+              required
+              tooltip="Describe what the expense was for"
+              isValid={formData.description?.length >= 3}
             />
             <div className="grid grid-cols-2 gap-3">
               <Input
@@ -731,6 +745,9 @@ export default function CreateContractPage() {
                 value={formData.total}
                 onChange={(e) => handleInputChange('total', e.target.value)}
                 placeholder="100"
+                required
+                tooltip="The full amount of the bill"
+                isValid={parseFloat(formData.total) > 0}
               />
               <Input
                 label="Their Share (RM)"
@@ -738,6 +755,9 @@ export default function CreateContractPage() {
                 value={formData.share}
                 onChange={(e) => handleInputChange('share', e.target.value)}
                 placeholder="50"
+                required
+                tooltip="The amount the other party should pay"
+                isValid={parseFloat(formData.share) > 0 && parseFloat(formData.share) <= parseFloat(formData.total)}
               />
             </div>
             <Input
@@ -746,6 +766,9 @@ export default function CreateContractPage() {
               value={formData.date}
               onChange={(e) => handleInputChange('date', e.target.value)}
               icon={Calendar}
+              required
+              tooltip="When should the payment be made?"
+              isValid={!!formData.date}
             />
           </>
         )
@@ -767,12 +790,18 @@ export default function CreateContractPage() {
               onChange={(e) => handleInputChange('amount', e.target.value)}
               placeholder="1000"
               icon={DollarSign}
+              required
+              tooltip="The amount being lent"
+              isValid={parseFloat(formData.amount) > 0}
             />
             <Input
               label="Purpose of Loan"
               value={formData.purpose}
               onChange={(e) => handleInputChange('purpose', e.target.value)}
               placeholder="e.g., Emergency expenses, Education"
+              required
+              tooltip="Why is this loan needed? This helps with documentation"
+              isValid={formData.purpose?.length >= 3}
             />
             <Input
               label="Repayment Date"
@@ -780,6 +809,9 @@ export default function CreateContractPage() {
               value={formData.date}
               onChange={(e) => handleInputChange('date', e.target.value)}
               icon={Calendar}
+              required
+              tooltip="When should the loan be repaid in full?"
+              isValid={!!formData.date}
             />
           </>
         )
@@ -1126,32 +1158,46 @@ export default function CreateContractPage() {
       <Header title="Create Contract" showBack />
 
       <div className="px-4 py-6">
-        {/* Progress Steps */}
+        {/* Progress Steps - Clickable */}
         <div className="flex items-center justify-center mb-8 overflow-x-auto pb-2">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex items-center">
-              <div
-                className={`
-                  w-8 h-8 rounded-xl flex items-center justify-center text-xs font-semibold flex-shrink-0
-                  transition-all duration-300
-                  ${currentStep > step.id
-                    ? 'icon-container-primary text-white shadow-md'
-                    : currentStep === step.id
-                      ? 'icon-container-primary text-white shadow-lg scale-105'
-                      : 'icon-container text-body/40'
-                  }
-                `}
-              >
-                {currentStep > step.id ? <Check className="h-3 w-3" strokeWidth={2} /> : step.id + 1}
+          {steps.map((step, index) => {
+            // Determine if step is clickable (only completed steps or current step)
+            const isCompleted = currentStep > step.id
+            const isCurrent = currentStep === step.id
+            const isClickable = isCompleted || (step.id < currentStep)
+            
+            return (
+              <div key={step.id} className="flex items-center">
+                <button
+                  onClick={() => {
+                    // Only allow going back to completed steps
+                    if (step.id < currentStep) {
+                      setCurrentStep(step.id)
+                    }
+                  }}
+                  disabled={step.id > currentStep}
+                  className={`
+                    w-8 h-8 rounded-xl flex items-center justify-center text-xs font-semibold flex-shrink-0
+                    transition-all duration-300
+                    ${isCompleted
+                      ? 'icon-container-primary text-white shadow-md hover:scale-110 hover:shadow-lg cursor-pointer'
+                      : isCurrent
+                        ? 'icon-container-primary text-white shadow-lg scale-105'
+                        : 'icon-container text-body/40 cursor-not-allowed'
+                    }
+                  `}
+                  title={isCompleted ? `Go back to ${step.label}` : step.label}
+                >
+                  {isCompleted ? <Check className="h-3 w-3" strokeWidth={2} /> : step.id + 1}
+                </button>
+                {index < steps.length - 1 && (
+                  <div
+                    className={`w-4 h-1 mx-0.5 rounded-full transition-all duration-300 ${isCompleted ? 'bg-gradient-to-r from-primary-mid to-accent' : 'bg-gray-200'}`}
+                  />
+                )}
               </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={`w-4 h-1 mx-0.5 rounded-full ${currentStep > step.id ? 'bg-gradient-to-r from-primary-mid to-accent' : 'bg-gray-200'
-                    }`}
-                />
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Step Content */}
@@ -1206,6 +1252,18 @@ export default function CreateContractPage() {
           )}
         </div>
       </div>
+
+      {/* Typewriter Loading Modal */}
+      <Modal isOpen={isPreparing || isCreating} onClose={() => {}} title="">
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="typewriter">
+            <div className="slide"><i></i></div>
+            <div className="paper"></div>
+            <div className="keyboard"></div>
+          </div>
+          <p className="mt-8 text-lg font-semibold text-gray-700">Hang on!</p>
+        </div>
+      </Modal>
     </div>
   )
 }
