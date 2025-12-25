@@ -147,40 +147,47 @@ MyJanji provides:
 ##  System Architecture
 
 ```
-
-                        FRONTEND (React + Vite)                  
-               
-  Dashboard  Contracts    Create     Sign              
-    Page       Page      Contract   Contract           
-               
-                        
-                                                                
-                                       
-                 Supabase Client                              
-                (Auth + DB + Storage)                         
-                                       
-
-                            HTTPS
-
-                    BACKEND (Flask API)                          
-                  
-  face_service  contract_svc   ocr_service               
-    (DeepFace)  (PDF Gen)      (Tesseract)               
-                  
-                                  
-  ai_annotation pdf_highlight                               
-    (Gemini)      (PyMuPDF)                                 
-                                  
-
-                           
-
-                      SUPABASE CLOUD                             
-               
-     users         contracts       Storage               
-   (profiles,     (form_data,    (PDFs,                  
-    embeddings)    signatures)    templates)             
-               
-
+┌─────────────────────────────────────────────────────────────────────┐
+│                     FRONTEND (React + Vite)                         │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐       │
+│  │  Dashboard │ │  Contracts │ │   Create   │ │    Sign    │       │
+│  │    Page    │ │    Page    │ │  Contract  │ │  Contract  │       │
+│  └─────┬──────┘ └─────┬──────┘ └─────┬──────┘ └─────┬──────┘       │
+│        └──────────────┴──────────────┴──────────────┘               │
+│                              │                                      │
+│                 ┌────────────▼────────────┐                         │
+│                 │    Supabase Client      │                         │
+│                 │  (Auth + DB + Storage)  │                         │
+│                 └────────────┬────────────┘                         │
+└──────────────────────────────┼──────────────────────────────────────┘
+                               │ HTTPS
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                       BACKEND (Flask API)                            │
+│                                                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │ face_service │  │ contract_svc │  │  ocr_service │               │
+│  │  (DeepFace)  │  │  (PDF Gen)   │  │  (EasyOCR)   │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
+│                                                                      │
+│  ┌──────────────┐  ┌──────────────┐                                 │
+│  │ai_annotation │  │pdf_highlight │                                 │
+│  │   (Gemini)   │  │   (PyMuPDF)  │                                 │
+│  └──────────────┘  └──────────────┘                                 │
+│                                                                      │
+└──────────────────────────────┬───────────────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                        SUPABASE CLOUD                                │
+│                                                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │    users     │  │  contracts   │  │   Storage    │               │
+│  │  (profiles,  │  │  (form_data, │  │   (PDFs,     │               │
+│  │  embeddings) │  │  signatures) │  │  templates)  │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
