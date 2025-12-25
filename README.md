@@ -119,7 +119,7 @@ MyJanji provides:
  Flask 3.x         # Python Web Framework
  DeepFace          # Face Recognition (ArcFace model)
  OpenCV            # Image Processing
- Tesseract OCR     # IC Text Extraction
+ EasyOCR           # IC Text Extraction (EN/MS, GPU-accelerated)
  python-docx       # Word Document Manipulation
  docx2pdf          # PDF Conversion
  PyMuPDF (fitz)    # PDF Highlighting
