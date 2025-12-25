@@ -1,0 +1,630 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Check,
+  X,
+  Calendar,
+  User,
+  ScanFace,
+  AlertCircle,
+  Loader2,
+  Nfc,
+  Eye,
+  Square,
+  CheckSquare,
+  XCircle,
+  MessageSquare,
+} from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { useContracts } from '../context/ContractContext'
+import Header from '../components/layout/Header'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
+import Input, { Textarea } from '../components/ui/Input'
+import SignaturePad from '../components/features/SignaturePad'
+import LiveFaceVerification from '../components/features/LiveFaceVerification'
+import NFCScanner from '../components/features/NFCScanner'
+import PDFPreviewModal from '../components/features/PDFPreviewModal'
+
+const steps = [
+  { id: 0, label: 'NFC Scan', icon: Nfc },
+  { id: 1, label: 'Face Verify', icon: ScanFace },
+  { id: 2, label: 'Review & Preview', icon: Eye },
+  { id: 3, label: 'Sign', icon: Check },
+]
+
+export default function SignContractPage() {
+  const { contractId } = useParams()
+  const navigate = useNavigate()
+  const { currentUser, availableUsers } = useAuth()
+  const { getContractById, signContract, declineContract } = useContracts()
+
+  const [contract, setContract] = useState(null)
+  const [currentStep, setCurrentStep] = useState(0) // Start with NFC Scan
+  const [hasConsented, setHasConsented] = useState(false)
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [showDeclineModal, setShowDeclineModal] = useState(false)
+  const [declineReason, setDeclineReason] = useState('')
+  const [nfcData, setNfcData] = useState(null)
+  const [isFaceVerified, setIsFaceVerified] = useState(false)
+  const [signature, setSignature] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (contractId) {
+      const found = getContractById(contractId)
+      setContract(found)
+    }
+  }, [contractId, getContractById])
+
+  const handleNFCSuccess = (data) => {
+    setNfcData(data)
+    // Auto-advance to face verification after brief delay
+    setTimeout(() => {
+      setCurrentStep(1)
+    }, 1500)
+  }
+
+  const handleNFCSkip = () => {
+    // For demo: skip NFC and go to face verification
+    setNfcData({ skipped: true, timestamp: new Date().toISOString() })
+    setCurrentStep(1)
+  }
+
+  const handleFaceVerified = (result) => {
+    setIsFaceVerified(true)
+    // Auto-advance to review & consent step after brief delay
+    setTimeout(() => {
+      setCurrentStep(2)
+    }, 1500)
+  }
+
+  const handleFaceError = (error) => {
+    console.error('Face verification error:', error)
+  }
+
+  const handleSignatureSave = (signatureData) => {
+    setSignature(signatureData)
+  }
+
+  const handleSubmitSignature = async () => {
+    if (!signature || !contract || !currentUser) return
+
+    setIsSubmitting(true)
+
+    try {
+      // Call backend to sign contract with acceptor signature
+      // This will re-generate PDF with acceptor details and signature, then overwrite in storage
+      const response = await fetch('http://localhost:5000/sign_contract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contract_id: contract.id || contract.contract_id,
+          acceptor_signature: signature,
+          acceptor_name: currentUser.name,
+          acceptor_ic: currentUser.ic,
+          acceptor_nfc_verified: !!nfcData,
+          acceptor_face_verified: isFaceVerified,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        console.log('✅ Contract signed successfully:', result)
+        // Also update local state via ContractContext
+        await signContract(contract.id, signature, true, currentUser.id)
+        // Navigate to dashboard
+        navigate('/dashboard')
+      } else {
+        console.error('❌ Contract signing failed:', result.error)
+        // Fallback to local update
+        await signContract(contract.id, signature, true, currentUser.id)
+        navigate('/dashboard')
+      }
+    } catch (error) {
+      console.error('Error submitting signature:', error)
+      // Fallback to local update
+      await signContract(contract.id, signature, true, currentUser.id)
+      navigate('/dashboard')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleReject = () => {
+    setShowDeclineModal(true)
+  }
+
+  const handleConfirmDecline = () => {
+    if (!contract) return
+
+    declineContract(contract.id, currentUser.id, declineReason || null)
+
+    // Show success and navigate
+    setTimeout(() => {
+      navigate('/dashboard')
+    }, 1500)
+  }
+
+  if (!contract) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header title="Sign Contract" showBack />
+        <div className="flex items-center justify-center h-[60vh]">
+          <Card className="text-center max-w-sm mx-4" padding="lg">
+            <AlertCircle className="h-12 w-12 text-status-breached mx-auto mb-4" />
+            <h2 className="text-lg font-bold text-header mb-2">Contract Not Found</h2>
+            <p className="text-body/60 mb-4">
+              The contract you're looking for doesn't exist or has been removed.
+            </p>
+            <Button onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Find creator from availableUsers using contract's creator_id or userId
+  const creator = availableUsers.find(u => u.id === (contract.creator_id || contract.userId)) || null
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header title="Sign Contract" showBack />
+
+      <div className="px-4 py-6">
+        {/* Progress Steps */}
+        <div className="flex items-center justify-center mb-6 overflow-x-auto pb-2">
+          {steps.map((step, index) => (
+            <div key={step.id} className="flex items-center">
+              <div className="flex flex-col items-center">
+                <div
+                  className={`
+                    w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0
+                    transition-all duration-300
+                    ${currentStep > step.id
+                      ? 'icon-container-primary text-white shadow-lg'
+                      : currentStep === step.id
+                        ? 'icon-container-primary text-white shadow-lg scale-110'
+                        : 'icon-container text-body/40'
+                    }
+                  `}
+                >
+                  {currentStep > step.id ? (
+                    <Check className="h-5 w-5" strokeWidth={1.5} />
+                  ) : (
+                    <step.icon className="h-5 w-5" strokeWidth={1.5} />
+                  )}
+                </div>
+                <span className={`text-xs mt-2 whitespace-nowrap font-medium ${currentStep >= step.id ? 'text-header' : 'text-body/40'}`}>
+                  {step.label}
+                </span>
+              </div>
+              {index < steps.length - 1 && (
+                <div
+                  className={`w-8 h-1 mx-1 mt-[-18px] flex-shrink-0 rounded-full ${currentStep > step.id ? 'bg-gradient-to-r from-primary-mid to-accent' : 'bg-gray-200'
+                    }`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Step Content */}
+        <AnimatePresence mode="wait">
+          {/* Step 0: NFC Scan */}
+          {currentStep === 0 && (
+            <motion.div
+              key="nfc"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <Card padding="lg">
+                <NFCScanner
+                  onSuccess={handleNFCSuccess}
+                  onSkip={handleNFCSkip}
+                  title="Verify Your Identity"
+                  description="Scan your MyKad NFC chip to verify your identity before face verification"
+                  expectedChipId={currentUser?.nfcChipId}
+                  userName={currentUser?.name}
+                />
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Step 1: Live Face Verification */}
+          {currentStep === 1 && (
+            <motion.div
+              key="face"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <Card padding="lg">
+                <div className="text-center mb-6">
+                  <ScanFace className="h-12 w-12 text-primary mx-auto mb-3" />
+                  <h2 className="text-xl font-bold text-header mb-2">Live Face Verification</h2>
+                  <p className="text-body/60 text-sm">
+                    Position your face in the frame. Verification runs automatically.
+                  </p>
+                </div>
+
+                {/* NFC Data Preview */}
+                {nfcData && !nfcData.skipped && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+                    <div className="flex items-center gap-2 text-green-700 text-sm">
+                      <Check className="h-4 w-4" />
+                      <span>MyKad Verified: {nfcData.icNumber}</span>
+                    </div>
+                  </div>
+                )}
+
+                <LiveFaceVerification
+                  onVerified={handleFaceVerified}
+                  onError={handleFaceError}
+                  interval={1000}
+                  faceEmbedding={currentUser?.faceEmbedding}
+                />
+
+                {isFaceVerified && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 text-center"
+                  >
+                    <p className="text-status-ongoing font-medium">
+                      Face verified! Proceeding to review...
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* Skip button for demo */}
+                <div className="mt-6 pt-4 border-t border-gray-100 text-center">
+                  <button
+                    onClick={() => {
+                      setIsFaceVerified(true)
+                      setCurrentStep(2)
+                    }}
+                    className="text-sm text-body/50 hover:text-primary transition-colors"
+                  >
+                    Skip verification (Demo)
+                  </button>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Step 2: Review, Preview & Consent (merged) */}
+          {currentStep === 2 && (
+            <motion.div
+              key="review-preview"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <Card padding="lg">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-mono text-body/50">{contract.id}</span>
+                  <span className="text-xs bg-status-pending/10 text-status-pending px-2 py-1 rounded-full font-medium">
+                    Awaiting Your Signature
+                  </span>
+                </div>
+
+                <h2 className="text-xl font-bold text-header mb-2">{contract.name}</h2>
+                <p className="text-body/60 mb-6">{contract.topic}</p>
+
+                {/* Verification Status */}
+                <div className="flex gap-3 mb-6">
+                  <div className={`flex-1 p-3 rounded-xl ${nfcData ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {nfcData ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Nfc className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${nfcData ? 'text-green-700' : 'text-body/40'}`}>
+                        NFC {nfcData ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`flex-1 p-3 rounded-xl ${isFaceVerified ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {isFaceVerified ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <ScanFace className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${isFaceVerified ? 'text-green-700' : 'text-body/40'}`}>
+                        Face {isFaceVerified ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parties */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-xs text-body/50 mb-2">From (Creator)</p>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={creator?.avatar}
+                        alt={creator?.name}
+                        className="w-10 h-10 rounded-lg object-cover"
+                      />
+                      <div>
+                        <p className="font-medium text-header text-sm">{creator?.name || 'Unknown'}</p>
+                        <p className="text-xs text-body/50">{creator?.ic || contract.creatorIc || 'N/A'}</p>
+                      </div>
+                    </div>
+                    {contract.creatorSignature && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs text-body/50 mb-1">Signed</p>
+                        <img
+                          src={contract.creatorSignature}
+                          alt="Creator signature"
+                          className="h-12 object-contain"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-primary/5 rounded-xl p-4 border-2 border-primary/20">
+                    <p className="text-xs text-primary mb-2">To (You)</p>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={currentUser?.avatar}
+                        alt={currentUser?.name}
+                        className="w-10 h-10 rounded-lg object-cover"
+                      />
+                      <div>
+                        <p className="font-medium text-header text-sm">{currentUser?.name}</p>
+                        <p className="text-xs text-body/50">{currentUser?.ic}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview PDF Button with AI Insights */}
+                <div className="mb-6">
+                  <Button
+                    onClick={() => setShowPdfPreview(true)}
+                    variant="outline"
+                    icon={Eye}
+                    className="w-full"
+                  >
+                    Preview Contract PDF {creator?.name ? `(Signed by ${creator.name})` : ''}
+                  </Button>
+                  <p className="text-xs text-body/40 text-center mt-2">
+                    Click 'AI Insights' in preview for clause analysis
+                  </p>
+                </div>
+
+                {/* Consent Checkbox */}
+                <div className="mb-6 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setHasConsented(!hasConsented)}
+                    className="flex items-start gap-3 w-full text-left p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      {hasConsented ? (
+                        <CheckSquare className="h-5 w-5 text-primary" />
+                      ) : (
+                        <Square className="h-5 w-5 text-body/40" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${hasConsented ? 'text-header' : 'text-body/70'}`}>
+                        I have reviewed and agree to the contract
+                      </p>
+                      <p className="text-xs text-body/50 mt-1">
+                        I confirm that I have read and understand all terms and conditions in this contract.
+                        I agree to proceed with signing.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    icon={X}
+                    onClick={handleReject}
+                  >
+                    Decline
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    icon={Check}
+                    onClick={() => setCurrentStep(3)}
+                    disabled={!hasConsented}
+                  >
+                    {hasConsented ? 'Continue to Sign' : 'Please consent above'}
+                  </Button>
+                </div>
+              </Card>
+
+              <p className="text-xs text-body/40 text-center mt-4 px-4">
+                Your identity has been verified. Please review the contract and consent to proceed.
+              </p>
+            </motion.div>
+          )}
+
+          {/* Step 3: Signature */}
+          {currentStep === 3 && (
+            <motion.div
+              key="sign"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <Card padding="lg">
+                <div className="text-center mb-6">
+                  <Check className="h-12 w-12 text-status-ongoing mx-auto mb-3" />
+                  <h2 className="text-xl font-bold text-header mb-2">Add Your Signature</h2>
+                  <p className="text-body/60 text-sm">
+                    Sign below to finalize the contract
+                  </p>
+                </div>
+
+                {/* Verification Status */}
+                <div className="flex gap-3 mb-6">
+                  <div className={`flex-1 p-3 rounded-xl ${nfcData ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {nfcData ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Nfc className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${nfcData ? 'text-green-700' : 'text-body/40'}`}>
+                        NFC {nfcData ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`flex-1 p-3 rounded-xl ${isFaceVerified ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      {isFaceVerified ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <ScanFace className="h-4 w-4 text-body/40" />
+                      )}
+                      <span className={`text-sm font-medium ${isFaceVerified ? 'text-green-700' : 'text-body/40'}`}>
+                        Face {isFaceVerified ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {signature ? (
+                  <div className="text-center">
+                    <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                      <img
+                        src={signature}
+                        alt="Your signature"
+                        className="max-h-24 mx-auto"
+                      />
+                    </div>
+                    <div className="flex gap-3 justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSignature(null)}
+                      >
+                        Redo Signature
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <SignaturePad
+                    onSave={handleSignatureSave}
+                    width={350}
+                    height={180}
+                  />
+                )}
+
+                {signature && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6"
+                  >
+                    <Button
+                      fullWidth
+                      onClick={handleSubmitSignature}
+                      disabled={isSubmitting}
+                      icon={isSubmitting ? Loader2 : Check}
+                      loading={isSubmitting}
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Submit Signed Contract'}
+                    </Button>
+                  </motion.div>
+                )}
+              </Card>
+
+              <p className="text-xs text-body/40 text-center mt-4 px-4">
+                By signing, you legally agree to all terms and conditions in this contract.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* PDF Preview Modal - uses directPdfUrl to fetch from storage */}
+      <PDFPreviewModal
+        isOpen={showPdfPreview}
+        onClose={() => setShowPdfPreview(false)}
+        contract={contract}
+        creator={creator}
+        acceptee={currentUser}
+        templateType={contract.templateType}
+        formData={contract.formData}
+        title={`Contract: ${contract.name}`}
+        allowDownload={true}
+        directPdfUrl={contract.pdfUrl || contract.pdf_url}
+      />
+
+      {/* Decline Contract Modal */}
+      <Modal
+        isOpen={showDeclineModal}
+        onClose={() => {
+          setShowDeclineModal(false)
+          setDeclineReason('')
+        }}
+        title="Decline Contract"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
+            <XCircle className="h-6 w-6 text-red-600" />
+            <div>
+              <p className="font-semibold text-red-800">Are you sure?</p>
+              <p className="text-sm text-red-600">
+                This will decline the contract. {creator?.name || 'The creator'} will be notified.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <Textarea
+              label="Reason for declining (optional)"
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="e.g., Terms not suitable, Amount too high, etc."
+              rows={4}
+              icon={MessageSquare}
+            />
+            <p className="text-xs text-body/50 mt-2">
+              Providing a reason helps the other party understand your decision.
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeclineModal(false)
+                setDeclineReason('')
+              }}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmDecline}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+            >
+              Decline Contract
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
