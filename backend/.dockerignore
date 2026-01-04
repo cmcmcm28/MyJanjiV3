@@ -1,0 +1,38 @@
+# Virtual environments
+venv/
+venv12/
+.venv/
+.venv312/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+
+# Environment files (should be passed as env vars in production)
+.env
+
+# Temp files
+uploads/*
+temp_contracts/*
+prepared_contracts/*
+temp_signatures/*
+!uploads/.gitkeep
+!temp_contracts/.gitkeep
+!prepared_contracts/.gitkeep
+!temp_signatures/.gitkeep
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

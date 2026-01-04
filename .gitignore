@@ -104,3 +104,5 @@ Thumbs.db
 # Virtual Environments
 .venv312/
 **/.venv312/
+venv12/
+**/venv12/
