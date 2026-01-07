@@ -7,6 +7,8 @@ export default function Card({
   hover = false,
   glass = true,
   onClick,
+  'aria-label': ariaLabel,
+  role: customRole,
   ...props
 }) {
   const paddingSizes = {
@@ -15,6 +17,17 @@ export default function Card({
     md: 'p-6',
     lg: 'p-8',
     xl: 'p-10',
+  }
+
+  // Determine if card is interactive (clickable)
+  const isInteractive = Boolean(onClick)
+
+  // Handle keyboard activation (Enter and Space)
+  const handleKeyDown = (e) => {
+    if (isInteractive && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault()
+      onClick?.(e)
+    }
   }
 
   return (
@@ -27,9 +40,14 @@ export default function Card({
         ${glass ? 'card-glass' : 'bg-surface card-shadow'}
         ${paddingSizes[padding]}
         ${hover ? 'cursor-pointer transition-all duration-300 hover:shadow-xl' : ''}
+        ${isInteractive ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2' : ''}
         ${className}
       `}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={customRole || (isInteractive ? 'button' : undefined)}
+      tabIndex={isInteractive ? 0 : undefined}
+      aria-label={ariaLabel}
       {...props}
     >
       {children}

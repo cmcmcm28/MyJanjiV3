@@ -29,6 +29,11 @@ export default function NFCScanner({
   const scanTimeoutRef = useRef(null)
   const capturedTextRef = useRef('')
   const isScanningRef = useRef(false)
+  const ndefReaderRef = useRef(null)
+  const abortControllerRef = useRef(null)
+
+  // Check if Web NFC API is available (Android Chrome only)
+  const webNFCSupported = typeof window !== 'undefined' && 'NDEFReader' in window
 
   // Parse NFC data from the reader
   // The raw value from the NFC reader is the chip ID (e.g., 064240461207420740)
@@ -116,7 +121,106 @@ export default function NFCScanner({
     }
   }, [status, parseNFCData, onSuccess, onError, expectedChipId])
 
-  // Start scanning - focus hidden input to capture keyboard input
+  // Handle successful NFC read (shared between Web NFC and keyboard modes)
+  const handleNFCRead = useCallback((chipId) => {
+    const parsedData = {
+      cardType: 'MyKad',
+      chipId: chipId,
+      timestamp: new Date().toISOString(),
+    }
+
+    // Validate against expected chip ID if provided
+    if (expectedChipId) {
+      if (chipId !== expectedChipId) {
+        isScanningRef.current = false
+        setScannedData(parsedData)
+        setStatus('mismatch')
+        setErrorMessage(`NFC Chip ID mismatch! This card does not match your registered MyKad. Please use the correct card.`)
+        onError?.({
+          message: 'Card mismatch',
+          expected: expectedChipId,
+          scanned: chipId
+        })
+        return
+      }
+    }
+
+    isScanningRef.current = false
+    setScannedData(parsedData)
+    setStatus('success')
+    setProgress(100)
+
+    // Clear the input (for keyboard mode)
+    if (inputRef.current) {
+      inputRef.current.value = ''
+    }
+
+    // Call success callback
+    setTimeout(() => {
+      onSuccess?.(parsedData)
+    }, 1000)
+  }, [expectedChipId, onSuccess, onError])
+
+  // Start Web NFC scanning (Android Chrome)
+  const startWebNFCScan = useCallback(async () => {
+    try {
+      // Create abort controller to stop scanning later
+      abortControllerRef.current = new AbortController()
+
+      // Create NDEF reader
+      const ndef = new NDEFReader()
+      ndefReaderRef.current = ndef
+
+      // Start scanning
+      await ndef.scan({ signal: abortControllerRef.current.signal })
+
+      // Animate progress while waiting
+      let progressValue = 10
+      const progressInterval = setInterval(() => {
+        if (progressValue < 90) {
+          progressValue += 5
+          setProgress(progressValue)
+        }
+      }, 500)
+
+      // Handle reading event
+      ndef.addEventListener("reading", ({ serialNumber }) => {
+        clearInterval(progressInterval)
+
+        // Convert serial number format (XX:XX:XX:XX) to clean string
+        // Web NFC returns format like "04:a2:b3:c4:d5:e6:f7"
+        const cleanChipId = serialNumber.replace(/:/g, '').toUpperCase()
+
+        console.log('Web NFC read:', serialNumber, '-> cleaned:', cleanChipId)
+        handleNFCRead(cleanChipId)
+      })
+
+      // Handle reading error
+      ndef.addEventListener("readingerror", () => {
+        clearInterval(progressInterval)
+        isScanningRef.current = false
+        setStatus('error')
+        setErrorMessage('Failed to read NFC card. Please try again.')
+        onError?.({ message: 'NFC read error' })
+      })
+
+    } catch (error) {
+      console.error('Web NFC error:', error)
+      isScanningRef.current = false
+      setStatus('error')
+
+      if (error.name === 'NotAllowedError') {
+        setErrorMessage('NFC permission denied. Please allow NFC access and try again.')
+      } else if (error.name === 'NotSupportedError') {
+        setErrorMessage('NFC is not available on this device.')
+      } else {
+        setErrorMessage('Failed to start NFC scanning. Please try again.')
+      }
+      onError?.({ message: error.message })
+    }
+  }, [handleNFCRead, onError])
+
+  // Start scanning - uses Web NFC on Android Chrome, keyboard input otherwise
   const startScanning = useCallback(() => {
     setStatus('scanning')
     setProgress(0)
@@ -125,30 +229,39 @@ export default function NFCScanner({
     capturedTextRef.current = ''
     isScanningRef.current = true
 
-    // Focus the hidden input field to capture keyboard input
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus()
-        inputRef.current.value = ''
-      }
-    }, 100)
+    if (webNFCSupported) {
+      // Use Web NFC API (Android Chrome)
+      startWebNFCScan()
+    } else {
+      // Fallback to keyboard emulation (laptop with USB reader)
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          inputRef.current.value = ''
+        }
+      }, 100)
 
-    // Set timeout in case no input is received
-    clearTimeout(scanTimeoutRef.current)
-    scanTimeoutRef.current = setTimeout(() => {
-      if (isScanningRef.current && capturedTextRef.current.length < 10) {
-        isScanningRef.current = false
-        setStatus('error')
-        setErrorMessage('No card detected. Please place your MyKad on the reader and try again.')
-        onError?.({ message: 'Scan timeout' })
-      }
-    }, 10000) // 10 second timeout
-  }, [onError])
+      // Set timeout in case no input is received
+      clearTimeout(scanTimeoutRef.current)
+      scanTimeoutRef.current = setTimeout(() => {
+        if (isScanningRef.current && capturedTextRef.current.length < 10) {
+          isScanningRef.current = false
+          setStatus('error')
+          setErrorMessage('No card detected. Please place your MyKad on the reader and try again.')
+          onError?.({ message: 'Scan timeout' })
+        }
+      }, 10000) // 10 second timeout
+    }
+  }, [webNFCSupported, startWebNFCScan, onError])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       clearTimeout(scanTimeoutRef.current)
+      // Abort Web NFC scan if active
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
     }
   }, [])
 
@@ -160,6 +273,11 @@ export default function NFCScanner({
     setScannedData(null)
     capturedTextRef.current = ''
     clearTimeout(scanTimeoutRef.current)
+    // Abort Web NFC scan if active
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
     if (inputRef.current) {
       inputRef.current.value = ''
     }
@@ -304,7 +422,9 @@ export default function NFCScanner({
               Start NFC Scan
             </Button>
             <p className="text-xs text-body/40 mt-4">
-              Place your MyKad on the R20C-USB reader after clicking Start
+              {webNFCSupported
+                ? 'Tap your MyKad on the back of your phone after clicking Start'
+                : 'Place your MyKad on the R20C-USB reader after clicking Start'}
             </p>
           </motion.div>
         )}
@@ -322,7 +442,9 @@ export default function NFCScanner({
               <span className="font-medium">Scanning MyKad...</span>
             </div>
             <p className="text-xs text-body/40 mt-2">
-              Place your MyKad on the R20C-USB reader now...
+              {webNFCSupported
+                ? 'Tap your MyKad on the back of your phone now...'
+                : 'Place your MyKad on the R20C-USB reader now...'}
             </p>
           </motion.div>
         )}
